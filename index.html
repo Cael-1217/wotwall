@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图文画册</title>
+<style>
+html,body{
+margin:0;height:100%;background:#000;font-family:Arial;color:#fff;overflow:hidden;
+}
+#slider{display:flex;height:100%;transition:transform .3s ease;}
+.slide{
+min-width:100vw;
+height:100vh;
+display:flex;
+flex-direction:column;
+}
+.imageBox{
+flex:1;
+display:flex;
+align-items:center;
+justify-content:center;
+background:#111;
+}
+.imageBox img{
+max-width:100%;
+max-height:100%;
+object-fit:contain;
+}
+.textBox{
+background:rgba(20,20,20,.95);
+padding:18px;
+font-size:18px;
+line-height:1.6;
+min-height:110px;
+box-sizing:border-box;
+}
+#page{
+position:fixed;
+top:10px;
+right:15px;
+background:rgba(0,0,0,.5);
+padding:6px 12px;
+border-radius:20px;
+}
+</style>
+</head>
+<body>
+
+<div id="page">1 / 4</div>
+
+<div id="slider">
+
+<div class="slide">
+<div class="imageBox"><img src="EBG-62.JPG"></div>
+<div class="textBox">第一张图片对应的介绍文字，可以自由修改。</div>
+</div>
+
+<div class="slide">
+<div class="imageBox"><img src="EBG-54.JPG"></div>
+<div class="textBox">第二张图片对应的介绍文字。</div>
+</div>
+
+<div class="slide">
+<div class="imageBox"><img src="EBG-58.JPG"></div>
+<div class="textBox">第三张图片对应的介绍文字。</div>
+</div>
+
+<div class="slide">
+<div class="imageBox"><img src="EBG-60.JPG"></div>
+<div class="textBox">第四张图片对应的介绍文字。</div>
+</div>
+
+</div>
+
+<script>
+const slider=document.getElementById("slider");
+const page=document.getElementById("page");
+const total=document.querySelectorAll(".slide").length;
+let index=0,startX=0;
+
+function update(){
+slider.style.transform=`translateX(${-index*100}vw)`;
+	page.innerText=(index+1)+" / "+total;
+}
+
+document.addEventListener("touchstart",e=>{
+startX=e.touches[0].clientX;
+});
+
+document.addEventListener("touchend",e=>{
+let d=e.changedTouches[0].clientX-startX;
+if(d<-50 && index<total-1) index++;
+if(d>50 && index>0) index--;
+update();
+});
+</script>
+
+</body>
+</html>
