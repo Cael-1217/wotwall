@@ -1,66 +1,10 @@
-<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'>
-<meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>坦克墙资料库</title>
-<style>
-body{margin:0;background:#111;color:#fff;font-family:Arial}
-#top{position:sticky;top:0;background:#222;padding:10px;z-index:9}
-input,select{width:100%;padding:10px;margin:4px 0;box-sizing:border-box}
-#grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px}
-.card{background:#1b1b1b;border-radius:10px;padding:8px}
-.card img{width:100%;height:120px;object-fit:contain}
-.title{text-align:center;font-weight:bold}
-#detail{display:none;position:fixed;inset:0;background:#111;z-index:99;overflow:hidden}
-#back{padding:10px;background:#222}
-#detail img{display:block;max-width:100%;max-height:45vh;margin:auto}
-#text{height:35vh;overflow-y:auto;padding:15px;line-height:1.6}
-</style></head><body>
-<div id='top'>
-<input id='search' placeholder='搜索坦克名称'>
-<select id='filter'>
-<option value=''>全部分类</option>
-<option>工程车</option>
-<option>反坦</option>
-<option>重坦</option>
-<option>中坦</option>
-<option>轻坦</option>
-<option>火炮</option>
-</select>
-</div>
-<div id='grid'></div>
-<div id='detail'>
-<div id='back'>← 返回目录</div>
-<img id='bigimg'>
-<h2 id='btitle' style='text-align:center'></h2>
-<div id='text'></div>
-</div>
-<script>
-const tanks=[
-{name:'EBG-62',cat:'工程车',img:'EBG-62.JPG',text:'F系VIII级工程车EBG-62'},
-{name:'EBG-54',cat:'工程车',img:'EBG-54.JPG',text:'这里填写详细介绍。'},
-{name:'EBG-58',cat:'工程车',img:'EBG-58.JPG',text:'这里填写详细介绍。'},
-{name:'EBG-60',cat:'工程车',img:'EBG-60.JPG',text:'这里填写详细介绍。'}
-];
-const grid=document.getElementById('grid');
-function draw(){
-grid.innerHTML='';
-let s=search.value.toLowerCase(),f=filter.value;
-tanks.forEach(t=>{
-if((!f||t.cat==f)&&t.name.toLowerCase().includes(s)){
-let c=document.createElement('div');
-c.className='card';
-c.innerHTML=`<img src="${t.img}"><div class=title>${t.name}</div>`;
-c.onclick=()=>openTank(t);
-grid.appendChild(c);
-}});
-}
-function openTank(t){
-detail.style.display='block';
-bigimg.src=t.img;
-btitle.innerText=t.name;
-text.innerText=t.text;
-}
-back.onclick=()=>detail.style.display='none';
-search.oninput=draw;
-filter.onchange=draw;
-draw();
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>坦克墙</title><style>body{margin:0;background:#111;color:#fff;font-family:Arial;user-select:none;-webkit-user-select:none}img{-webkit-user-drag:none;pointer-events:none}#top{position:sticky;top:0;background:#222;padding:8px}input,select{width:100%;padding:8px;margin:4px 0}#grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}.card{padding:6px;border-radius:8px}.FR{background:#1d4e89}.DE{background:#555}.US{background:#2f6b3d}.CN{background:#8a6d1d}.RU{background:#7a2222}.SE{background:#2a4f9b}.UK{background:#5b3a7a}.JP{background:#7a3a4a}.IT{background:#2d6a4f}.CZ{background:#2d7a7a}.PL{background:#7a4a2d}.card img{width:100%;height:120px;object-fit:contain}.title{text-align:center;font-weight:bold}#detail{display:none;position:fixed;inset:0;background:#111}#viewer{display:flex;transition:.3s}.pic{min-width:100vw;height:45vh;display:flex;align-items:center;justify-content:center}.pic img{max-width:100%;max-height:100%}#text{height:32vh;overflow:auto;padding:10px}#foot{position:fixed;bottom:0;left:0;right:0;background:#000;height:28px;overflow:hidden}#mar{display:inline-block;white-space:nowrap;padding-left:100%;animation:m 15s linear infinite}@keyframes m{to{transform:translateX(-100%)}}</style></head><body oncontextmenu="return false"><div id="top"><input id="s" placeholder="搜索坦克"><select id="f"><option value="">全部国家</option><option>FR</option><option>DE</option><option>US</option><option>CN</option><option>RU</option><option>SE</option><option>DE</option><option>UK</option><option>JP</option><option>IT</option><option>CZ</option><option>PL</option></select>
+<select id="tier"><option value="">全部等级</option><option>VIII</option><option>IX</option><option>X</option><option>XI</option></select>
+<select id="type"><option value="">全部类型</option><option>工程车</option><option>重坦</option><option>中坦</option><option>轻坦</option><option>反坦</option><option>火炮</option></select></div><div id="grid"></div><div id="detail"><button onclick="detail.style.display='none'">返回</button><div id="viewer"></div><h2 id="tit"></h2><div id="text"></div></div><div id="foot"><div id="mar">【官方QQ群聊：967845736】    【UP：烛梦Cael】</div></div><script>
+let ac=new(window.AudioContext||webkitAudioContext)();
+function beep(){let o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.05);o.stop(ac.currentTime+.05);}
+const tanks=[{name:'EBG-62',nation:'FR',imgs:['EBG-62.JPG'],tier:'VIII',type:'工程车',text:'F系VIII级工程车EBG-62'},{name:'EBG-54',nation:'FR',imgs:['EBG-54.JPG'],tier:'IX',type:'工程车',text:'F系IX级工程车EBG-54'},{name:'EBG-58',nation:'FR',imgs:['EBG-58.JPG'],tier:'X',type:'工程车',text:'F系X级工程车EBG-58'},{name:'EBG-60',nation:'FR',imgs:['EBG-60.JPG'],tier:'XI',type:'工程车',text:'F系XI级工程车EBG-60'}];
+function draw(){grid.innerHTML='';tanks.forEach(x=>{if((!f.value||x.nation==f.value)&&(!tier.value||x.tier==tier.value)&&(!type.value||x.type==type.value)&&x.name.toLowerCase().includes(s.value.toLowerCase())){let d=document.createElement('div');d.className='card '+x.nation;d.innerHTML='<div class=title>'+x.name+'</div><img src='+x.imgs[0]+'>';d.onclick=()=>openT(x);grid.appendChild(d)}})}
+function openT(x){beep();detail.style.display='block';tit.innerText=x.name;text.innerText=x.text;viewer.innerHTML='';x.imgs.forEach(i=>viewer.innerHTML+='<div class=pic><img src='+i+'></div>');let p=0,st=0;viewer.style.transform='translateX(0)';detail.ontouchstart=e=>st=e.touches[0].clientX;detail.ontouchend=e=>{let d=e.changedTouches[0].clientX-st;if(d<-50&&p<x.imgs.length-1)p++;if(d>50&&p>0)p--;viewer.style.transform='translateX('+(-p*100)+'vw)';}}
+s.oninput=draw;f.onchange=draw;tier.onchange=draw;type.onchange=draw;draw();
 </script></body></html>
