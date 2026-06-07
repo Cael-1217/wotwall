@@ -22,10 +22,49 @@ input,select{width:100%;padding:8px;margin:4px 0;box-sizing:border-box}
 #back{padding:10px;background:#222}
 #gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory}
 #gallery img{width:100vw;height:45vh;object-fit:contain;scroll-snap-align:start}
-#desc{height:30vh;overflow-y:auto;padding:10px}
 #marquee{position:fixed;bottom:0;left:0;right:0;background:#000;overflow:hidden}
 #marquee div{white-space:nowrap;padding-left:100%;animation:mar 15s linear infinite}
 @keyframes mar{to{transform:translateX(-100%)}}
+.author{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:15px;
+    margin-top:15px;
+    margin-bottom:15px;
+}
+
+.avatar{
+    width:80px;
+    height:80px;
+    border-radius:50%;
+    object-fit:cover;
+    border:3px solid #5aa9ff;
+    box-shadow:0 0 15px rgba(90,169,255,.5);
+}
+
+.authorText{
+    display:flex;
+    flex-direction:column;
+}
+
+.authorName{
+    font-size:24px;
+    font-weight:bold;
+}
+
+.authorInfo{
+    font-size:14px;
+    color:#bbb;
+    margin-top:5px;
+}
+
+#desc{
+    height:30vh;
+    overflow-y:auto;
+    padding:10px;
+    white-space:pre-wrap;
+}
 </style>
 </head>
 <body oncontextmenu="return false">
@@ -54,10 +93,33 @@ input,select{width:100%;padding:8px;margin:4px 0;box-sizing:border-box}
 <div id="grid"></div>
 
 <div id="detail">
-<div id="back">← 返回</div>
-<div id="gallery"></div>
-<h2 id="dtitle"></h2>
-<div id="desc"></div>
+
+    <div id="back">← 返回</div>
+
+    <div id="gallery"></div>
+
+    <div class="author">
+
+        <img src="avatar.JPG" class="avatar">
+
+        <div class="authorText">
+
+            <div class="authorName">
+                烛梦Cael
+            </div>
+
+            <div class="authorInfo">
+                坦克资料作者
+            </div>
+
+        </div>
+
+    </div>
+
+    <h2 id="dtitle"></h2>
+
+    <div id="desc"></div>
+
 </div>
 
 <div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】</div></div>
