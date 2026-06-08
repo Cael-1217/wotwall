@@ -68,8 +68,8 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 #desc{ height:35vh; overflow-y:auto; padding:15px; white-space:pre-wrap; border-top: 1px solid var(--border-color); }
 #dtitle { padding: 0 15px; margin: 15px 0 5px 0; }
 
-/* 切换创作者下拉菜单 */
-.author-select-box { width: 100%; padding: 10px; margin-bottom: 12px; background: var(--header-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 15px; font-weight: bold; }
+/* 作者页面卡片垂直排列容器 */
+#author-card-container { display: flex; flex-direction: column; gap: 15px; }
 
 /* 作者卡片盒 */
 .author-card-box {
@@ -88,8 +88,9 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 /* 1. 原Lv区域升级为自定义头衔 */
 .author-title-badge { background: #e2f0e3; color: #52a55d; font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
 
-/* 2. 原A2区域升级为作品浏览（小图片） */
-.author-work-preview { font-size: 12px; background: rgba(90,169,255,0.15); color: #5aa9ff; border: 1px solid #5aa9ff; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
+/* 2. 原A2区域升级为作品浏览（支持点击过滤） */
+.author-work-preview { font-size: 12px; background: rgba(90,169,255,0.15); color: #5aa9ff; border: 1px solid #5aa9ff; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 4px; cursor: pointer; transition: background 0.2s; }
+.author-work-preview:active { background: rgba(90,169,255,0.3); }
 
 .author-stats { display: flex; gap: 20px; margin-top: 12px; padding-left: 90px; }
 .stat-item { display: flex; flex-direction: column; align-items: center; font-size: 13px; color: var(--text-color); opacity: 0.8; }
@@ -97,6 +98,10 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 .stat-item .num.green { color: #4caf50; }
 .author-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; font-size: 13px; color: var(--text-color); opacity: 0.6; }
 .lollipop-box { display: flex; align-items: center; gap: 4px; color: #e0a13c; font-weight: bold; font-size: 14px; }
+
+/* 作者过滤动态提示横条 */
+#author-filter-hint { display: none; background: rgba(90,169,255,0.15); border: 1px solid #5aa9ff; color: #5aa9ff; padding: 8px 12px; margin-bottom: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; justify-content: space-between; align-items: center; }
+#author-filter-hint button { background: #5aa9ff; color: #fff; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 
 /* 设置界面布局 */
 .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--border-color); }
@@ -143,16 +148,22 @@ body { padding-bottom: 25px; }
     </div>
 </header>
 
+<!-- 1. 坦克主列表页面 -->
 <div id="tank-page" class="page-content active">
+    <!-- 增加：正在浏览某作者作品的提示横条 -->
+    <div id="author-filter-hint">
+        <span id="filter-hint-text">正在浏览某作者的作品</span>
+        <button onclick="clearAuthorFilter()">显示全部</button>
+    </div>
     <div id="grid" class="grid-mode"></div>
 </div>
 
+<!-- 2. 作者卡片页面（取消了下拉菜单，改为全员竖向排列） -->
 <div id="author-page" class="page-content">
-    <select id="author-selector" class="author-select-box" onchange="renderAuthorCard(this.value)">
-        </select>
     <div id="author-card-container"></div>
 </div>
 
+<!-- 3. 设置列表页面 -->
 <div id="settings-page" class="page-content">
     <div class="setting-item">
         <span>白天 / 夜晚模式</span>
@@ -167,6 +178,7 @@ body { padding-bottom: 25px; }
     </div>
 </div>
 
+<!-- 坦克详情弹窗 -->
 <div id="detail">
     <div id="back">← 返回列表</div>
     <div id="gallery"></div>
@@ -180,32 +192,30 @@ body { padding-bottom: 25px; }
 <script>
 // 【车型 PNG 图标路径与符号兜底配置】
 const typeIcons = {
-    "重坦": { png: "ht.png", fallback: "▰" },
-    "中坦": { png: "mt.png", fallback: "▱" },
-    "轻坦": { png: "lt.png", fallback: "▲" },
-    "反坦": { png: "td.png", fallback: "▼" },
-    "火炮": { png: "spg.png", fallback: "■" },
-    "工程车": { png: "eng.png", fallback: "⚙" }
+    "重坦": { png: "ht.PNG", fallback: "▰" },
+    "中坦": { png: "mt.PNG", fallback: "▱" },
+    "轻坦": { png: "lt.PNG", fallback: "▲" },
+    "反坦": { png: "td.PNG", fallback: "▼" },
+    "火炮": { png: "spg.PNG", fallback: "■" },
+    "工程车": { png: "eng.PNG", fallback: "⚙" }
 };
 
-// 【创作者数据库】如果有新加入的创作者，直接在下面增加一组即可！
+// 【创作者数据库】
 const authors = {
     "cael": {
         name: "烛梦Cael",
         avatar: "avatar.JPG",
         title: "站长",                
-        workText: "🖼️ 作品浏览",     
-        worksCount: 4,               
+        workText: "🖼️ 作品浏览",                    
         fansCount: 1,                
         joinTime: "2026-6-8 20:45:15",
         totalWorks: 67               
     },
     "test_author": {
-        name: "神秘创作者X",
+        name: "445",
         avatar: "avatar2.JPG",
-        title: "特邀作者",
+        title: "手绘大师",
         workText: "🖼️ 概念图集",
-        worksCount: 12,
         fansCount: 99,
         joinTime: "2026-6-9 12:00:00",
         totalWorks: 15
@@ -261,11 +271,14 @@ text:"这里填写详细介绍。"
 }
 ];
 
+// 全局变量：当前正在过滤的作者ID（空代表显示全部）
+let currentAuthorFilter = "";
+
 const grid=document.getElementById("grid");
 const filters = document.getElementById("header-filters");
 
 // 选项卡切换
-function switchTab(pageId, btn) {
+function switchTab(pageId, btn, keepFilter = false) {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     
@@ -274,18 +287,20 @@ function switchTab(pageId, btn) {
     
     if(pageId === 'tank-page') {
         filters.style.display = 'grid';
+        // 如果是玩家手动点击顶部的“坦克”标签切回来的，则自动清除作者过滤，展示全部
+        if(!keepFilter) {
+            currentAuthorFilter = "";
+        }
+        draw();
     } else {
         filters.style.display = 'none';
     }
 }
 
-// 极其安全的图标生成逻辑：即使找不到 PNG，也绝不卡死页面
+// 极其安全的图标生成逻辑
 function getIconHtml(type) {
     const config = typeIcons[type];
-    // 如果车型完全没在列表里定义，返回普通小圆点兜底
     if (!config) return `<span style="color:#ffcd38; font-weight:bold; margin-right:4px;">•</span>`;
-    
-    // 创建一个包含 img 和 fallback span 的结构，图片加载失败时通过 onerror 自动显示 span 字符
     return `
         <img src="${config.png}" class="type-icon-png" style="margin-right:4px;" 
              onerror="this.style.display='none'; if(this.nextElementSibling){this.nextElementSibling.style.display='inline-block';}">
@@ -299,10 +314,21 @@ function draw(){
     grid.innerHTML="";
     const currentLayout = document.getElementById("layout-select") ? document.getElementById("layout-select").value : "grid";
     
+    // 控制作者过滤提示条的显示与隐藏
+    const hintBar = document.getElementById("author-filter-hint");
+    const hintText = document.getElementById("filter-hint-text");
+    if(currentAuthorFilter && authors[currentAuthorFilter]) {
+        hintBar.style.display = "flex";
+        hintText.innerText = `🔍 正在浏览 [${authors[currentAuthorFilter].name}] 的作品`;
+    } else {
+        hintBar.style.display = "none";
+    }
+    
     tanks.forEach(t=>{
         if((!nation.value||t.nation===nation.value)
         &&(!tier.value||t.tier===tier.value)
         &&(!type.value||t.type===type.value)
+        &&(!currentAuthorFilter||t.authorId===currentAuthorFilter) // 加入作者过滤条件
         &&t.name.toLowerCase().includes(search.value.toLowerCase())){
             
             let card=document.createElement("div");
@@ -331,58 +357,60 @@ function draw(){
     });
 }
 
-// 动态绘制作者卡片
-function renderAuthorCard(authorKey) {
+// 联动核心：点击作者卡片上的“作品浏览”触发跳转并过滤
+function clickToViewAuthor(authorKey) {
+    currentAuthorFilter = authorKey;
+    // 自动寻找并激活第一个标签（坦克标签页按钮）
+    const tankTabBtn = document.querySelector(".tabs .tab-btn");
+    switchTab('tank-page', tankTabBtn, true);
+}
+
+// 清除作者过滤
+function clearAuthorFilter() {
+    currentAuthorFilter = "";
+    draw();
+}
+
+// 动态绘制所有作者卡片（纵向铺满排列）
+function renderAllAuthors() {
     const container = document.getElementById("author-card-container");
     if(!container) return;
-    const author = authors[authorKey];
-    if(!author) return;
+    container.innerHTML = "";
     
-    container.innerHTML = `
-        <div class="author-card-box">
-            <div class="author-main">
-                <img src="${author.avatar}" class="author-avatar" onerror="this.src='https://via.placeholder.com/80'">
-                <div class="author-right">
-                    <div class="author-name-row">
-                        <span class="author-name">${author.name}</span>
-                        <span class="author-title-badge">${author.title}</span>
-                        <span class="author-work-preview">${author.workText}</span>
+    // 遍历数据库中所有创作者，挨个生成卡片叠放
+    Object.keys(authors).forEach(key => {
+        const author = authors[key];
+        let cardHtml = `
+            <div class="author-card-box">
+                <div class="author-main">
+                    <img src="${author.avatar}" class="author-avatar" onerror="this.src='https://via.placeholder.com/80'">
+                    <div class="author-right">
+                        <div class="author-name-row">
+                            <span class="author-name">${author.name}</span>
+                            <span class="author-title-badge">${author.title}</span>
+                            <!-- 绑定点击事件 -->
+                            <span class="author-work-preview" onclick="clickToViewAuthor('${key}')">${author.workText}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="author-stats">
+                    <!-- 删除了原先多余的作品数，仅保留粉丝 -->
+                    <div class="stat-item">
+                        <span class="num green">${author.fansCount}</span>
+                        <span>粉丝</span>
+                    </div>
+                </div>
+                <div class="author-footer">
+                    <div>加入时间：${author.joinTime}</div>
+                    <div class="lollipop-box">
+                        <span>作品数</span>
+                        <span style="margin-left:4px;">${author.totalWorks}</span>
                     </div>
                 </div>
             </div>
-            <div class="author-stats">
-                <div class="stat-item">
-                    <span class="num">${author.worksCount}</span>
-                    <span>作品</span>
-                </div>
-                <div class="stat-item">
-                    <span class="num green">${author.fansCount}</span>
-                    <span>粉丝</span>
-                </div>
-            </div>
-            <div class="author-footer">
-                <div>加入时间：${author.joinTime}</div>
-                <div class="lollipop-box">
-                    <span>作品数</span>
-                    <span style="margin-left:4px;">${author.totalWorks}</span>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// 初始化加载作者下拉列表
-function initAuthorSelector() {
-    const selector = document.getElementById("author-selector");
-    if(!selector) return;
-    selector.innerHTML = "";
-    Object.keys(authors).forEach(key => {
-        let opt = document.createElement("option");
-        opt.value = key;
-        opt.innerText = authors[key].name;
-        selector.appendChild(opt);
+        `;
+        container.innerHTML += cardHtml;
     });
-    renderAuthorCard(Object.keys(authors)[0]);
 }
 
 // 主题切换
@@ -439,8 +467,8 @@ nation.onchange=draw;
 tier.onchange=draw;
 type.onchange=draw;
 
-// 执行初始化
-initAuthorSelector();
+// 初始化执行
+renderAllAuthors();
 draw();
 </script>
 </body>
