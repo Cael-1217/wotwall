@@ -150,7 +150,6 @@ body { padding-bottom: 25px; }
 
 <!-- 1. 坦克主列表页面 -->
 <div id="tank-page" class="page-content active">
-    <!-- 增加：正在浏览某作者作品的提示横条 -->
     <div id="author-filter-hint">
         <span id="filter-hint-text">正在浏览某作者的作品</span>
         <button onclick="clearAuthorFilter()">显示全部</button>
@@ -158,7 +157,7 @@ body { padding-bottom: 25px; }
     <div id="grid" class="grid-mode"></div>
 </div>
 
-<!-- 2. 作者卡片页面（取消了下拉菜单，改为全员竖向排列） -->
+<!-- 2. 作者卡片页面 -->
 <div id="author-page" class="page-content">
     <div id="author-card-container"></div>
 </div>
@@ -176,6 +175,11 @@ body { padding-bottom: 25px; }
             <option value="list">列表排序模式</option>
         </select>
     </div>
+    <!-- 增加：版本号显示栏 -->
+    <div class="setting-item">
+        <span>当前版本</span>
+        <span style="font-weight: normal; opacity: 0.5; font-family: monospace; font-size: 15px;">v0.8.1</span>
+    </div>
 </div>
 
 <!-- 坦克详情弹窗 -->
@@ -187,7 +191,7 @@ body { padding-bottom: 25px; }
     <div id="desc"></div>
 </div>
 
-<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】</div></div>
+<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.8.1】 </div></div>
 
 <script>
 // 【车型 PNG 图标路径与符号兜底配置】
@@ -207,18 +211,27 @@ const authors = {
         avatar: "avatar.JPG",
         title: "站长",                
         workText: "🖼️ 作品浏览",                    
-        fansCount: 1,                
-        joinTime: "2026-6-8 20:45:15",
+        fansCount: 7,                
+        joinTime: "2026-6-7 20:45:15",
         totalWorks: 67               
     },
-    "test_author": {
+    "445": {
         name: "445",
         avatar: "avatar2.JPG",
         title: "手绘大师",
-        workText: "🖼️ 概念图集",
-        fansCount: 99,
+        workText: "🖼️ 作品浏览",
+        fansCount: 1,
         joinTime: "2026-6-9 12:00:00",
-        totalWorks: 15
+        totalWorks: 7
+    }，
+    "tiger": {
+        name: "湾仔虎",
+        avatar: "avatar3.JPG",
+        title: "新晋创作者",
+        workText: "🖼️ 作品浏览",
+        fansCount: 1,
+        joinTime: "2026-6-9 12:00:00",
+        totalWorks: 1
     }
 };
 
@@ -256,7 +269,7 @@ name:"Ikv 62",
 nation:"SE",
 tier:"VIII",
 type:"中坦",
-authorId: "test_author", 
+authorId: "445", 
 imgs:["IKV-62.JPG"],
 text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
 },
@@ -271,7 +284,6 @@ text:"这里填写详细介绍。"
 }
 ];
 
-// 全局变量：当前正在过滤的作者ID（空代表显示全部）
 let currentAuthorFilter = "";
 
 const grid=document.getElementById("grid");
@@ -287,7 +299,6 @@ function switchTab(pageId, btn, keepFilter = false) {
     
     if(pageId === 'tank-page') {
         filters.style.display = 'grid';
-        // 如果是玩家手动点击顶部的“坦克”标签切回来的，则自动清除作者过滤，展示全部
         if(!keepFilter) {
             currentAuthorFilter = "";
         }
@@ -297,7 +308,7 @@ function switchTab(pageId, btn, keepFilter = false) {
     }
 }
 
-// 极其安全的图标生成逻辑
+// 图标生成逻辑
 function getIconHtml(type) {
     const config = typeIcons[type];
     if (!config) return `<span style="color:#ffcd38; font-weight:bold; margin-right:4px;">•</span>`;
@@ -314,7 +325,6 @@ function draw(){
     grid.innerHTML="";
     const currentLayout = document.getElementById("layout-select") ? document.getElementById("layout-select").value : "grid";
     
-    // 控制作者过滤提示条的显示与隐藏
     const hintBar = document.getElementById("author-filter-hint");
     const hintText = document.getElementById("filter-hint-text");
     if(currentAuthorFilter && authors[currentAuthorFilter]) {
@@ -328,7 +338,7 @@ function draw(){
         if((!nation.value||t.nation===nation.value)
         &&(!tier.value||t.tier===tier.value)
         &&(!type.value||t.type===type.value)
-        &&(!currentAuthorFilter||t.authorId===currentAuthorFilter) // 加入作者过滤条件
+        &&(!currentAuthorFilter||t.authorId===currentAuthorFilter)
         &&t.name.toLowerCase().includes(search.value.toLowerCase())){
             
             let card=document.createElement("div");
@@ -357,10 +367,9 @@ function draw(){
     });
 }
 
-// 联动核心：点击作者卡片上的“作品浏览”触发跳转并过滤
+// 联动核心：点击作者卡片上的“作品浏览”
 function clickToViewAuthor(authorKey) {
     currentAuthorFilter = authorKey;
-    // 自动寻找并激活第一个标签（坦克标签页按钮）
     const tankTabBtn = document.querySelector(".tabs .tab-btn");
     switchTab('tank-page', tankTabBtn, true);
 }
@@ -371,13 +380,12 @@ function clearAuthorFilter() {
     draw();
 }
 
-// 动态绘制所有作者卡片（纵向铺满排列）
+// 动态绘制所有作者卡片
 function renderAllAuthors() {
     const container = document.getElementById("author-card-container");
     if(!container) return;
     container.innerHTML = "";
     
-    // 遍历数据库中所有创作者，挨个生成卡片叠放
     Object.keys(authors).forEach(key => {
         const author = authors[key];
         let cardHtml = `
@@ -388,13 +396,11 @@ function renderAllAuthors() {
                         <div class="author-name-row">
                             <span class="author-name">${author.name}</span>
                             <span class="author-title-badge">${author.title}</span>
-                            <!-- 绑定点击事件 -->
                             <span class="author-work-preview" onclick="clickToViewAuthor('${key}')">${author.workText}</span>
                         </div>
                     </div>
                 </div>
                 <div class="author-stats">
-                    <!-- 删除了原先多余的作品数，仅保留粉丝 -->
                     <div class="stat-item">
                         <span class="num green">${author.fansCount}</span>
                         <span>粉丝</span>
