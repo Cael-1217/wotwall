@@ -56,9 +56,20 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 #grid.list-mode .title-container { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px; }
 #grid.list-mode .type-badge { font-size: 12px; opacity: 0.8; border: 1px solid rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px; }
 
-/* 各系背景色 */
-.FR{background:#244} .DE{background:#444} .US{background:#243} .RU{background:#422} .CN{background:#664}
-.SE{background:linear-gradient(90deg,#146,#db3)}
+/* 各系背景色 (包含原有修改及新增) */
+.FR { background: #00bfff; } /* 青色 */
+.DE { background: #1a1a1a; } /* 黑色 */
+.US { background: #f5f5dc; color: #000; } /* 米色 (深色字体防看不清) */
+.RU { background: #005a00; } /* 深绿色 */
+.CN { background: #90ee90; color: #000; } /* 浅绿色 (深色字体防看不清) */
+.SE { background: linear-gradient(90deg, #005bc5, #ffcd00); text-shadow: 1px 1px 2px #000; } /* 蓝黄渐变 */
+.UK { background: linear-gradient(90deg, #c8102e, #ffffff, #012169); text-shadow: 1px 1px 3px #000; } /* Y系 红白蓝渐变 */
+.PL { background: #ff8c00; } /* B系 橙色 */
+.JK { background: #654321; } /* J系 棕色 */
+.JP { background: #ffffff; color: #000; border: 1px solid #ccc; } /* R系 白色 */
+.SP { background: linear-gradient(90deg, #ffc400, #c60b1e); text-shadow: 1px 1px 2px #000; } /* X系 黄红渐变 */
+.IT { background: linear-gradient(90deg, #cd212a, #ffffff, #008c45); text-shadow: 1px 1px 3px #000; } /* I系 红白绿渐变 */
+
 
 /* 详情模态页 */
 #detail{display:none; position:fixed; inset:0; background:var(--bg-color); z-index: 100; overflow-y: auto;}
@@ -135,11 +146,20 @@ body { padding-bottom: 25px; }
             <option value="RU">S系</option>
             <option value="CN">C系</option>
             <option value="SE">V系</option>
+            <option value="UK">Y系</option>
+            <option value="PL">B系</option>
+            <option value="JK">J系</option>
+            <option value="JP">R系</option>
+            <option value="SP">X系</option>
+            <option value="IT">I系</option>
         </select>
         <select id="tier">
             <option value="">全部等级</option>
+            <option>I</option><option>II</option><option>III</option>
+            <option>IV</option><option>V</option><option>VI</option><option>VII</option>
             <option>VIII</option><option>IX</option><option>X</option><option>XI</option>
         </select>
+
         <select id="type">
             <option value="">全部类型</option>
             <option>工程车</option><option>重坦</option><option>中坦</option>
@@ -269,9 +289,153 @@ name:"Ikv 62",
 nation:"SE",
 tier:"VIII",
 type:"中坦",
-authorId: "445", 
+authorId: "cael", 
 imgs:["IKV-62.JPG"],
 text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
+},
+{
+name:"Ikv 82",
+nation:"SE",
+tier:"IX",
+type:"中坦",
+authorId: "cael", 
+imgs:["IKV-82.JPG"],
+text:`历史参考: \nIkv 82是瑞典六十年代研发的中型坦克...`
+},
+{
+name:"Strv-L1",
+nation:"SE",
+tier:"X",
+type:"中坦",
+authorId: "cael", 
+imgs:["Strv-L1.JPG"],
+text:`历史参考: \nStrv-L1是瑞典六十年代研发的中型坦克...`
+},
+{
+name:"SAL V2",
+nation:"SE",
+tier:"X",
+type:"重坦",
+authorId: "cael", 
+imgs:["SALV2.JPG"],
+text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
+},
+{
+name:"SAAB-AMX 105",
+nation:"SE",
+tier:"X",
+type:"中坦",
+authorId: "cael", 
+imgs:["AMXSAAB.JPG"],
+text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
+},
+{
+name:"ASTRL-R22 105K5",
+nation:"US",
+tier:"VIII",
+type:"反坦",
+authorId: "cael", 
+imgs:["ASTRL105.PNG"],
+text:"AAA "
+},
+{
+name:"ASTRL-R22 120K7",
+nation:"US",
+tier:"VIII",
+type:"反坦",
+authorId: "cael", 
+imgs:["ASTRL120.PNG"],
+text:"AAA "
+},
+{
+name:"AGR MT",
+nation:"US",
+tier:"VIII",
+type:"中坦",
+authorId: "cael", 
+imgs:["AGFDMT.PNG"],
+text:"AAA "
+},
+{
+name:"780工程",
+nation:"RU",
+tier:"IX",
+type:"重坦",
+authorId: "cael", 
+imgs:["obj780.JPG"],
+text:"AAA "
+},
+{
+name:"156工程 V",
+nation:"RU",
+tier:"VIII",
+type:"反坦",
+authorId: "cael", 
+imgs:["obj156.JPG"],
+text:"AAA "
+},
+{
+name:"短吻鳄MK.X",
+nation:"UK",
+tier:"XI",
+type:"中坦",
+authorId: "cael", 
+imgs:["MKX.JPG"],
+text:"AAA "
+},
+{
+name:"TNH T Vz.57",
+nation:"JK",
+tier:"XI",
+type:"重坦",
+authorId: "cael", 
+imgs:["Vz57.JPG"],
+text:"AAA "
+},
+{
+name:"SDPS 72 C",
+nation:"PL",
+tier:"XI",
+type:"反坦",
+authorId: "cael", 
+imgs:["SDPS.JPG"],
+text:"AAA "
+},
+{
+name:"M4/A13 R22",
+nation:"UK",
+tier:"V",
+type:"中坦",
+authorId: "cael", 
+imgs:["M4-A13.JPG"],
+text:"AAA "
+},
+{
+name:"FSV18",
+nation:"UK",
+tier:"VI",
+type:"中坦",
+authorId: "cael", 
+imgs:["M18-6x6.JPG"],
+text:"AAA "
+},
+{
+name:"AVK66 Utkas2 15cm",
+nation:"SE",
+tier:"VIII",
+type:"火炮",
+authorId: "cael", 
+imgs:["AVK66.JPG"],
+text:"AAA "
+},
+{
+name:"AVK27 Utkas1 12cm",
+nation:"SE",
+tier:"VII",
+type:"火炮",
+authorId: "cael", 
+imgs:["AVK27.JPG"],
+text:"AAA "
 },
 {
 name:"EBG-60",
