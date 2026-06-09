@@ -333,6 +333,13 @@ body { padding-bottom: 25px; }
 <div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.8.1】 </div></div>
 
 <script>
+// 【新增】优先预加载主角图片
+const playerImg = new Image();
+playerImg.src = "player.PNG"; // 请务必替换成你实际的图片名字
+playerImg.onload = () => {
+    console.log("主角图片已优先加载完成！");
+};
+
 // 【车型 PNG 图标路径与符号兜底配置】
 const typeIcons = {
     "重坦": { png: "ht.PNG", fallback: "▰" },
