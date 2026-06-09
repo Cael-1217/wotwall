@@ -192,7 +192,8 @@ body { padding-bottom: 25px; }
 </head>
 <body oncontextmenu="return false">
 <div id="loading-screen">
-    <img id="loading-image" src="loading-bg.jpg" onerror="this.src='https://via.placeholder.com/400x250?text=Loading+Image'">
+    <img id="loading-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="width: 80%; max-width: 400px; height: auto; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); object-fit: cover;">
+
     
     <div id="progress-container">
         <div id="progress-bar"></div>
@@ -844,10 +845,10 @@ function clearCalc() {
     document.getElementById('calc-eff').value = '';
 }
 
-// ==================== 小游戏：2D 跑酷逻辑 ====================
+// ==================== 小游戏：2D 跑酷逻辑 ===================
 let gameLoop, ctx, canvas;
 let player = { lane: 1, img: new Image() }; // lane: 0=上, 1=中, 2=下
-player.img.src = "player.png"; // 这里填你的主角图片名字！
+player.img.src = "player.PNG"; // 这里填你的主角图片名字！
 let obstacles = [], gameSpeed = 5, score = 0, frames = 0, isGameOver = false;
 
 async function enterFullscreenGame() {
@@ -895,28 +896,44 @@ function runGame() {
     ctx.beginPath(); ctx.moveTo(0, 266); ctx.lineTo(800, 266); ctx.stroke();
     ctx.setLineDash([]);
 
-    // 刷新速度与分数
+    // ==========================================
+    // 【终极提速与计分逻辑】
+    // ==========================================
     frames++;
-    if (frames % 10 === 0) { score++; document.getElementById('game-score').innerText = score; }
-    if (frames % 300 === 0) { gameSpeed += 0.5; } // 越来越快
+    
+    // 1. 分数增长：随速度越快，跳分越猛
+    let scoreInterval = Math.max(1, Math.floor(150 / gameSpeed)); 
+    if (frames % scoreInterval === 0) {
+        score++; 
+        document.getElementById('game-score').innerText = score; 
+    }
 
-    // 障碍物生成 (保证不会3条道全堵死)
-    if (frames % Math.max(40, 100 - gameSpeed * 5) === 0) {
+    // 2. 疯狂提速：每 200 帧（约 3 秒）提升 0.8 速度
+    if (frames % 200 === 0) { 
+        gameSpeed += 0.8; 
+    } 
+
+    // 3. 障碍生成：速度越快，刷得越密（概率动态调整）
+    let spawnInterval = Math.max(25, Math.floor(120 - gameSpeed * 6));
+    if (frames % spawnInterval === 0) {
         let lane1 = Math.floor(Math.random() * 3);
         let lane2 = Math.floor(Math.random() * 3);
         obstacles.push({ x: 800, lane: lane1 });
-        // 50%概率同一列出现两个障碍，但绝对不会出现三个
-        if(Math.random() > 0.5 && lane1 !== lane2) { obstacles.push({ x: 800, lane: lane2 }); }
+        
+        // 游戏后期（速度>10），双排障碍概率提升到 75%
+        let doubleObsChance = gameSpeed > 10 ? 0.75 : 0.5;
+        if(Math.random() > (1 - doubleObsChance) && lane1 !== lane2) { 
+            obstacles.push({ x: 800, lane: lane2 }); 
+        }
     }
 
-    // 移动与绘制障碍物
+    // 4. 障碍移动与碰撞
     for (let i = 0; i < obstacles.length; i++) {
         let obs = obstacles[i];
         obs.x -= gameSpeed;
-        ctx.fillStyle = "#ff4757"; // 障碍物红色
+        ctx.fillStyle = "#ff4757";
         ctx.fillRect(obs.x, 30 + obs.lane * 133, 60, 60);
 
-        // 碰撞检测
         if (obs.x < 110 && obs.x + 60 > 50 && obs.lane === player.lane) {
             isGameOver = true;
             ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -924,16 +941,21 @@ function runGame() {
             ctx.font = "20px Arial"; ctx.fillText("点击屏幕重试", 330, 250);
         }
     }
-    // 移除移出屏幕的障碍物
     obstacles = obstacles.filter(obs => obs.x > -60);
+    // ==========================================
 
-    // 绘制主角
-    let playerY = 30 + player.lane * 133;
-    if (player.img.complete && player.img.naturalHeight !== 0) {
-        ctx.drawImage(player.img, 50, playerY, 60, 60);
-    } else {
-        ctx.fillStyle = "#5aa9ff"; ctx.fillRect(50, playerY, 60, 60); // 没加载图时的备用方块
-    }
+  //  这是专为你 1167x455 尺寸优化的长方形代码：
+let playerY = 30 + player.lane * 133;
+if (player.img.complete && player.img.naturalHeight !== 0) {
+    // 保持 1167:455 的比例，设定高度为 40 像素，宽度按比例自动算出约为 102 像素
+    let pHeight = 40; 
+    let pWidth = (1167 / 455) * pHeight; // 自动计算完美比例
+    
+    // 稍微调整一下 Y 轴偏置，让它在赛道中间
+    ctx.drawImage(player.img, 50, playerY + 10, pWidth, pHeight); 
+} else {
+    ctx.fillStyle = "#5aa9ff"; ctx.fillRect(50, playerY + 10, 102, 40); // 备用方块也变成长方形
+}
 
     if (!isGameOver) requestAnimationFrame(runGame);
 }
