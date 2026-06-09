@@ -639,7 +639,8 @@ function draw(){
             if(currentLayout === 'grid') {
                 card.innerHTML = `
                     <div class='title-container'>${iconHtml}<span>${t.name}</span></div>
-                    <img class="tank-preview" src='${t.imgs[0]}' onerror="this.src='https://via.placeholder.com/120x80?text=No+Image'">
+                    <img class="tank-preview" src='${t.imgs[0]}' loading="lazy"
+                    onerror="this.src='https://via.placeholder.com/120x80?text=No+Image'">
                 `;
             } else {
                 card.innerHTML = `
