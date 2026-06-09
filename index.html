@@ -865,8 +865,12 @@ function clearCalc() {
 
 // ==================== 小游戏：2D 跑酷逻辑 ===================
 let gameLoop, ctx, canvas;
-let player = { lane: 1, img: new Image() }; // lane: 0=上, 1=中, 2=下
-player.img.src = "player.PNG"; // 这里填你的主角图片名字！
+// 修改为复用预加载对象
+let player = { 
+    lane: 1, 
+    img: playerImg // 直接使用上面定义的 playerImg
+};
+
 let obstacles = [], gameSpeed = 5, score = 0, frames = 0, isGameOver = false;
 
 async function enterFullscreenGame() {
