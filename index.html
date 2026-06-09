@@ -200,6 +200,7 @@ body { padding-bottom: 25px; }
     </div>
     
     <div id="loading-text">正在初始化...</div>
+        <button id="skip-btn" onclick="skipLoading()" style="margin-top: 20px; padding: 5px 15px; background: transparent; border: 1px solid #555; color: #888; border-radius: 15px; font-size: 12px; cursor: pointer;">跳过加载</button>
 </div>
 
 <header>
@@ -758,6 +759,16 @@ type.onchange=draw;
 // 初始化执行
 renderAllAuthors();
 draw();
+// 跳过加载函数
+function skipLoading() {
+    const loadingScreen = document.getElementById('loading-screen');
+    // 直接强制把进度拉到 100% 并隐藏画面
+    loadingScreen.style.opacity = "0";
+    setTimeout(() => {
+        loadingScreen.style.display = "none";
+    }, 500);
+}
+
 // 【加载动画逻辑】
 window.addEventListener('load', () => {
     const loadingScreen = document.getElementById('loading-screen');
@@ -927,13 +938,18 @@ function runGame() {
         }
     }
 
-    // 4. 障碍移动与碰撞
+    // 移动与绘制障碍物
     for (let i = 0; i < obstacles.length; i++) {
         let obs = obstacles[i];
-        obs.x -= gameSpeed;
+        
+        // 【核心优化】：使用 Math.round 对齐整数像素，强制消除抖动
+        obs.x -= Math.round(gameSpeed); 
+        
         ctx.fillStyle = "#ff4757";
-        ctx.fillRect(obs.x, 30 + obs.lane * 133, 60, 60);
+        // 确保坐标也是整数
+        ctx.fillRect(Math.round(obs.x), 30 + obs.lane * 133, 60, 60);
 
+        // 碰撞检测逻辑保持不变
         if (obs.x < 110 && obs.x + 60 > 50 && obs.lane === player.lane) {
             isGameOver = true;
             ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
