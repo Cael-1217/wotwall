@@ -187,6 +187,99 @@ body { padding-bottom: 25px; }
     border-radius: 4px;
     outline: none;
 }
+/* ================= 登录卡片 ================= */
+
+.login-card{
+    background:var(--header-bg);
+    border-radius:12px;
+    padding:20px;
+    margin-top:15px;
+}
+
+.login-title{
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+    margin-bottom:20px;
+}
+
+.login-input{
+    width:100%;
+    box-sizing:border-box;
+    padding:12px;
+    margin-bottom:12px;
+    border:none;
+    border-radius:8px;
+    background:var(--bg-color);
+    color:var(--text-color);
+    border:1px solid var(--border-color);
+    font-size:15px;
+}
+
+.login-btn-box{
+    display:flex;
+    gap:10px;
+}
+
+.login-btn{
+    flex:1;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    background:#5aa9ff;
+    color:#fff;
+    font-size:15px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.login-btn:active{
+    opacity:0.8;
+}
+
+.user-panel{
+    display:none;
+}
+
+.user-avatar{
+    width:80px;
+    height:80px;
+    border-radius:50%;
+    display:block;
+    margin:auto;
+    border:3px solid #5aa9ff;
+    object-fit:cover;
+}
+
+.user-name{
+    text-align:center;
+    margin-top:10px;
+    font-size:22px;
+    font-weight:bold;
+}
+
+.user-role{
+    text-align:center;
+    margin-top:5px;
+    color:#5aa9ff;
+    font-size:14px;
+}
+
+.user-menu{
+    margin-top:20px;
+}
+
+.user-menu button{
+    width:100%;
+    padding:12px;
+    margin-bottom:10px;
+    border:none;
+    border-radius:8px;
+    background:var(--bg-color);
+    color:var(--text-color);
+    border:1px solid var(--border-color);
+    cursor:pointer;
+}
 
 </style>
 </head>
@@ -209,6 +302,7 @@ body { padding-bottom: 25px; }
         <button class="tab-btn" onclick="switchTab('author-page', this)">作者</button>
         <button class="tab-btn" onclick="switchTab('tools-page', this)">工具</button>
         <button class="tab-btn" onclick="switchTab('game-page', this)">小游戏</button>
+        <button class="tab-btn" onclick="switchTab('user-page', this)">我的</button>
         <button class="tab-btn" onclick="switchTab('settings-page', this)">设置</button>
     </div>
 
@@ -259,7 +353,72 @@ body { padding-bottom: 25px; }
     <div id="author-card-container"></div>
 </div>
 
-<!-- 3. 设置列表页面 -->
+<div id="user-page" class="page-content">
+
+<div id="login-box">
+
+<h2>用户登录</h2>
+
+<input id="login-user"
+placeholder="用户名"
+style="width:100%;padding:10px;margin:5px 0;">
+
+<input id="login-pass"
+type="password"
+placeholder="密码"
+style="width:100%;padding:10px;margin:5px 0;">
+
+<div style="display:flex;gap:10px;margin-top:10px;">
+
+<button onclick="login()"
+style="flex:1;padding:10px;">
+登录
+</button>
+
+<button onclick="registerUser()"
+style="flex:1;padding:10px;">
+注册
+</button>
+
+</div>
+
+</div>
+
+<div id="user-info"
+style="display:none;">
+
+<h2 id="welcome-user"></h2>
+
+<div class="author-card-box">
+
+<p>账号类型：
+<span id="user-role">
+普通用户
+</span>
+
+</p>
+
+<p>
+收藏数量：
+<span id="fav-count">
+0
+</span>
+</p>
+
+</div>
+
+<button
+onclick="logout()"
+style="width:100%;
+padding:12px;
+margin-top:15px;">
+退出登录
+</button>
+
+     </div>
+</div>
+
+- 3. 设置列表页面 -->
 <div id="settings-page" class="page-content">
     <div class="setting-item">
         <span>白天 / 夜晚模式</span>
@@ -434,6 +593,21 @@ body { padding-bottom: 25px; }
 <div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.8.1】 </div></div>
 
 <script>
+
+let currentUser=null;
+
+let users=
+JSON.parse(
+localStorage.getItem("users")
+)||{
+
+admin:{
+username:"admin",
+password:"123456",
+role:"admin"
+}
+
+};
 // 【新增】优先预加载主角图片
 const playerImg = new Image();
 playerImg.src = "player.PNG"; // 请务必替换成你实际的图片名字
@@ -886,6 +1060,29 @@ window.addEventListener('load', () => {
     const loadingImage = document.getElementById('loading-image'); // 新增：获取图片元素
 
     // ==========================================
+ window.addEventListener(
+"load",
+()=>{
+
+let save=
+localStorage.getItem(
+"loginUser"
+);
+
+if(
+save
+&&
+users[save]
+){
+
+currentUser=
+users[save];
+
+showUser();
+
+}
+
+});   
     // 【新增】：多张加载图随机切换逻辑
     // 把你所有的加载图片文件名写在这个数组里（注意加引号和逗号）
     const loadingBgs = [
@@ -1261,6 +1458,135 @@ function clearFirepower() {
     document.getElementById('calc-dpm').value = '';
 }
 
+function registerUser(){
+
+let u=
+document.getElementById(
+"login-user"
+).value.trim();
+
+let p=
+document.getElementById(
+"login-pass"
+).value.trim();
+
+if(!u||!p){
+
+alert("请输入用户名和密码");
+
+return;
+
+}
+
+if(users[u]){
+
+alert("用户名已存在");
+
+return;
+
+}
+
+users[u]={
+
+username:u,
+
+password:p,
+
+role:"user"
+
+};
+
+localStorage.setItem(
+"users",
+JSON.stringify(users)
+);
+
+alert("注册成功");
+
+}
+function login(){
+
+let u=
+document.getElementById(
+"login-user"
+).value.trim();
+
+let p=
+document.getElementById(
+"login-pass"
+).value.trim();
+
+if(
+users[u]
+&&
+users[u].password==p
+){
+
+currentUser=
+users[u];
+
+localStorage.setItem(
+"loginUser",
+u
+);
+
+showUser();
+
+}else{
+
+alert("账号或密码错误");
+
+}
+
+}
+function logout(){
+
+currentUser=null;
+
+localStorage.removeItem(
+"loginUser"
+);
+
+document.getElementById(
+"login-box"
+).style.display="block";
+
+document.getElementById(
+"user-info"
+).style.display="none";
+
+}
+function showUser(){
+
+document.getElementById(
+"login-box"
+).style.display="none";
+
+document.getElementById(
+"user-info"
+).style.display="block";
+
+document.getElementById(
+"welcome-user"
+).innerHTML=
+
+"欢迎回来，"+
+currentUser.username;
+
+document.getElementById(
+"user-role"
+).innerHTML=
+
+currentUser.role=="admin"
+?
+
+"管理员"
+
+:
+
+"普通用户";
+
+}
 </script>
 </body>
 </html>
