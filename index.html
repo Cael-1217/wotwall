@@ -304,6 +304,107 @@ body { padding-bottom: 25px; }
             </div>
         </div>
     </div>
+        <div class="author-card-box" style="margin-top: 15px;">
+        <h3 style="margin-top:0;">🐎 动力与推重比计算器</h3>
+        <p style="font-size:12px; color:#aaa;">填写任意两项，留空想计算的那一项，点击计算。</p>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>坦克重量 (吨)</span><input type="number" id="calc-weight" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>发动机马力 (hp)</span><input type="number" id="calc-hp" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>推重比 (hp/t)</span><input type="number" id="calc-ptw" style="width:100px; padding:5px;">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="calculatePTW()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算</button>
+                <button onclick="clearPTW()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="author-card-box" style="margin-top: 15px;">
+        <h3 style="margin-top:0;">🛞 轮式转向半径计算器</h3>
+        <p style="font-size:12px; color:#aaa;">依据阿克曼转向几何。填写任意两项，留空一项计算。</p>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>车辆轴距 (米)</span><input type="number" id="calc-wheelbase" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>最大转向角 (度)</span><input type="number" id="calc-steer-ang" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>转向半径 (米)</span><input type="number" id="calc-steer-rad" style="width:100px; padding:5px;">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="calculateSteering()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算</button>
+                <button onclick="clearSteering()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="author-card-box" style="margin-top: 15px;">
+        <h3 style="margin-top:0;">⏱️ 回转时间计算器 (360°)</h3>
+        <p style="font-size:12px; color:#aaa;">计算绕圈或原地回转所需时间。填写两项，留空一项。</p>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>转向半径 (米)</span><input type="number" id="calc-circle-rad" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>行驶速度 (km/h)</span><input type="number" id="calc-speed" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>回转时间 (秒)</span><input type="number" id="calc-turn-time" style="width:100px; padding:5px;">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="calculateTurnTime()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算</button>
+                <button onclick="clearTurnTime()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
+            </div>
+        </div>
+    </div>
+    <div class="author-card-box" style="margin-top: 15px;">
+        <h3 style="margin-top:0;">💥 火力与 DPM 计算器</h3>
+        <p style="font-size:12px; color:#aaa;">填写已知数值，留空想求的数值。会自动进行反推。</p>
+        
+        <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
+            <input type="checkbox" id="calc-dpm-mode" onchange="toggleDpmMode()" style="width:18px; height:18px; accent-color: #5aa9ff; cursor:pointer;">
+            <span style="font-size: 14px; color: #5aa9ff; font-weight: bold; cursor:pointer;" onclick="document.getElementById('calc-dpm-mode').click()">高级选项：开启弹夹车模式</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:5px;">
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>单发损伤</span><input type="number" id="calc-dmg" style="width:100px; padding:5px;">
+            </div>
+            
+            <div class="setting-item" id="calc-item-reload" style="padding:10px 0; border:none;">
+                <span>装填时间 (秒)</span><input type="number" id="calc-reload" style="width:100px; padding:5px;">
+            </div>
+
+            <div class="setting-item dpm-auto-item" style="padding:10px 0; border:none; display:none;">
+                <span>弹夹炮弹数 (发)</span><input type="number" id="calc-clip" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item dpm-auto-item" style="padding:10px 0; border:none; display:none;">
+                <span>短装填时间 (秒)</span><input type="number" id="calc-short" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item dpm-auto-item" style="padding:10px 0; border:none; display:none;">
+                <span>长装填时间 (秒)</span><input type="number" id="calc-long" style="width:100px; padding:5px;">
+            </div>
+
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>每分钟射速 (发/分)</span><input type="number" id="calc-rpm" style="width:100px; padding:5px;">
+            </div>
+            <div class="setting-item" style="padding:10px 0; border:none;">
+                <span>DPM (每分钟伤害)</span><input type="number" id="calc-dpm" style="width:100px; padding:5px;">
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="calculateFirepower()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算</button>
+                <button onclick="clearFirepower()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <div id="game-page" class="page-content">
@@ -997,6 +1098,168 @@ document.getElementById('game-container').addEventListener('mousedown', (e) => {
     if (clickY < rect.height / 2 && player.lane > 0) player.lane--;
     else if (clickY >= rect.height / 2 && player.lane < 2) player.lane++;
 });
+// ==================== 工具：推重比计算器 ====================
+function calculatePTW() {
+    let w = parseFloat(document.getElementById('calc-weight').value);
+    let hp = parseFloat(document.getElementById('calc-hp').value);
+    let ptw = parseFloat(document.getElementById('calc-ptw').value);
+
+    if (!isNaN(w) && !isNaN(hp) && isNaN(ptw)) {
+        document.getElementById('calc-ptw').value = (hp / w).toFixed(2);
+    } else if (!isNaN(w) && !isNaN(ptw) && isNaN(hp)) {
+        document.getElementById('calc-hp').value = (w * ptw).toFixed(2);
+    } else if (!isNaN(hp) && !isNaN(ptw) && isNaN(w)) {
+        document.getElementById('calc-weight').value = (hp / ptw).toFixed(2);
+    } else {
+        alert("请正确填写：必须且只能填写其中的两项数值！");
+    }
+}
+function clearPTW() {
+    document.getElementById('calc-weight').value = '';
+    document.getElementById('calc-hp').value = '';
+    document.getElementById('calc-ptw').value = '';
+}
+
+// ==================== 工具：轮式转向计算器 ====================
+function calculateSteering() {
+    let wb = parseFloat(document.getElementById('calc-wheelbase').value);
+    let ang = parseFloat(document.getElementById('calc-steer-ang').value);
+    let rad = parseFloat(document.getElementById('calc-steer-rad').value);
+
+    if (!isNaN(wb) && !isNaN(ang) && isNaN(rad)) {
+        // 算半径: R = 轴距 / sin(角度)
+        let radAngle = ang * Math.PI / 180;
+        document.getElementById('calc-steer-rad').value = (wb / Math.sin(radAngle)).toFixed(2);
+    } else if (!isNaN(wb) && !isNaN(rad) && isNaN(ang)) {
+        // 算角度: 角度 = arcsin(轴距 / 半径)
+        if (wb > rad) { alert("物理限制：轴距不能大于转向半径！"); return; }
+        let radAngle = Math.asin(wb / rad);
+        document.getElementById('calc-steer-ang').value = (radAngle * 180 / Math.PI).toFixed(2);
+    } else if (!isNaN(ang) && !isNaN(rad) && isNaN(wb)) {
+        // 算轴距: 轴距 = 半径 * sin(角度)
+        let radAngle = ang * Math.PI / 180;
+        document.getElementById('calc-wheelbase').value = (rad * Math.sin(radAngle)).toFixed(2);
+    } else {
+        alert("请正确填写：必须且只能填写其中的两项数值！");
+    }
+}
+function clearSteering() {
+    document.getElementById('calc-wheelbase').value = '';
+    document.getElementById('calc-steer-ang').value = '';
+    document.getElementById('calc-steer-rad').value = '';
+}
+
+// ==================== 工具：回转时间计算器 ====================
+function calculateTurnTime() {
+    let rad = parseFloat(document.getElementById('calc-circle-rad').value);
+    let spd = parseFloat(document.getElementById('calc-speed').value);
+    let time = parseFloat(document.getElementById('calc-turn-time').value);
+
+    // 圆周长 C = 2 * PI * R
+    // 速度转换 v_ms = spd / 3.6 (将 km/h 换算为 m/s)
+    if (!isNaN(rad) && !isNaN(spd) && isNaN(time)) {
+        let c = 2 * Math.PI * rad;
+        let v_ms = spd / 3.6;
+        document.getElementById('calc-turn-time').value = (c / v_ms).toFixed(2);
+    } else if (!isNaN(rad) && !isNaN(time) && isNaN(spd)) {
+        let c = 2 * Math.PI * rad;
+        let v_ms = c / time;
+        document.getElementById('calc-speed').value = (v_ms * 3.6).toFixed(2);
+    } else if (!isNaN(spd) && !isNaN(time) && isNaN(rad)) {
+        let v_ms = spd / 3.6;
+        let c = v_ms * time;
+        document.getElementById('calc-circle-rad').value = (c / (2 * Math.PI)).toFixed(2);
+    } else {
+        alert("请正确填写：必须且只能填写其中的两项数值！");
+    }
+}
+function clearTurnTime() {
+    document.getElementById('calc-circle-rad').value = '';
+    document.getElementById('calc-speed').value = '';
+    document.getElementById('calc-turn-time').value = '';
+}
+// ==================== 工具：火力与 DPM 计算器 ====================
+function toggleDpmMode() {
+    let isAuto = document.getElementById('calc-dpm-mode').checked;
+    // 切换单发和弹夹的输入框
+    document.getElementById('calc-item-reload').style.display = isAuto ? 'none' : 'flex';
+    let autoItems = document.querySelectorAll('.dpm-auto-item');
+    autoItems.forEach(item => item.style.display = isAuto ? 'flex' : 'none');
+    clearFirepower(); // 切换模式时清空，防止数据错乱
+}
+
+function calculateFirepower() {
+    let isAuto = document.getElementById('calc-dpm-mode').checked;
+    
+    let D = parseFloat(document.getElementById('calc-dmg').value);
+    let R = parseFloat(document.getElementById('calc-rpm').value);
+    let P = parseFloat(document.getElementById('calc-dpm').value);
+    
+    // 使用多次循环推导，解决复杂联动逆推问题
+    for(let i = 0; i < 3; i++) {
+        // 公共推导：已知两个算第三个
+        if (!isNaN(D) && !isNaN(R) && isNaN(P)) P = D * R;
+        if (!isNaN(P) && !isNaN(R) && isNaN(D)) D = P / R;
+        if (!isNaN(P) && !isNaN(D) && isNaN(R)) R = P / D;
+        
+        if (isAuto) {
+            let C = parseFloat(document.getElementById('calc-clip').value);
+            let S = parseFloat(document.getElementById('calc-short').value);
+            let L = parseFloat(document.getElementById('calc-long').value);
+            
+            let cycle = NaN; // 弹夹循环周期
+            if (!isNaN(C) && !isNaN(R)) cycle = C * 60 / R; 
+            
+            if (isNaN(cycle) && !isNaN(L) && !isNaN(C) && !isNaN(S)) {
+                cycle = L + (C - 1) * S;
+            }
+            
+            if (!isNaN(cycle)) {
+                if (isNaN(R) && !isNaN(C)) R = C * 60 / cycle;
+                if (isNaN(L) && !isNaN(C) && !isNaN(S)) L = cycle - (C - 1) * S;
+                if (isNaN(S) && !isNaN(C) && !isNaN(L) && C > 1) S = (cycle - L) / (C - 1);
+            }
+            
+            // 缓存中间结果，供下一次循环补全
+            if (!isNaN(C)) document.getElementById('calc-clip').value = C;
+            if (!isNaN(S)) document.getElementById('calc-short').value = S;
+            if (!isNaN(L)) document.getElementById('calc-long').value = L;
+            
+        } else {
+            let T = parseFloat(document.getElementById('calc-reload').value);
+            if (!isNaN(R) && isNaN(T)) T = 60 / R;
+            if (!isNaN(T) && isNaN(R)) R = 60 / T;
+            if (!isNaN(T)) document.getElementById('calc-reload').value = T;
+        }
+    }
+
+    // 回显格式化（处理小数和取整）
+    if (!isNaN(D)) document.getElementById('calc-dmg').value = Math.round(D);
+    if (!isNaN(R)) document.getElementById('calc-rpm').value = R.toFixed(2);
+    if (!isNaN(P)) document.getElementById('calc-dpm').value = Math.round(P); // 游戏里 DPM 一般取整
+    
+    if (isAuto) {
+        let C = parseFloat(document.getElementById('calc-clip').value);
+        let S = parseFloat(document.getElementById('calc-short').value);
+        let L = parseFloat(document.getElementById('calc-long').value);
+        if (!isNaN(C)) document.getElementById('calc-clip').value = Math.round(C);
+        if (!isNaN(S)) document.getElementById('calc-short').value = S.toFixed(2);
+        if (!isNaN(L)) document.getElementById('calc-long').value = L.toFixed(2);
+    } else {
+        let T = parseFloat(document.getElementById('calc-reload').value);
+        if (!isNaN(T)) document.getElementById('calc-reload').value = T.toFixed(2);
+    }
+}
+
+function clearFirepower() {
+    document.getElementById('calc-dmg').value = '';
+    document.getElementById('calc-reload').value = '';
+    document.getElementById('calc-clip').value = '';
+    document.getElementById('calc-short').value = '';
+    document.getElementById('calc-long').value = '';
+    document.getElementById('calc-rpm').value = '';
+    document.getElementById('calc-dpm').value = '';
+}
 
 </script>
 </body>
