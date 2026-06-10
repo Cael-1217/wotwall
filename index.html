@@ -56,21 +56,19 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 #grid.list-mode .title-container { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px; }
 #grid.list-mode .type-badge { font-size: 12px; opacity: 0.8; border: 1px solid rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px; }
 
-/* 各系背景色 (包含原有修改及新增) */
-.FR { background: #006fb4; } /* 青色 */
-.DE { background: #1a1a1a; } /* 黑色 */
-.US { background: #f5f5dc; color: #000; } /* 米色 (深色字体防看不清) */
-.RU { background: #005a00; } /* 深绿色 */
-.CN { background: #90ee90; color: #000; } /* 浅绿色 (深色字体防看不清) */
-.SE { background: linear-gradient(90deg, #005bc5, #ffcd00); text-shadow: 1px 1px 2px #000; } /* 蓝黄渐变 */
-.UK { background: linear-gradient(135deg, #c8102e 0%, #c8102e 33.33%, #ffffff 33.33%, #ffffff 66.66%, #012169 66.66%, #012169 100%); text-shadow: 1px 1px 3px #000; } /* Y系 135度倾斜三色等分 */
-/* Y系 红白蓝渐变 */
-.PL { background: #ff8c00; } /* B系 橙色 */
-.JK { background: #654321; } /* J系 棕色 */
-.JP { background: #ffffff; color: #000; border: 1px solid #ccc; } /* R系 白色 */
-.SP { background: linear-gradient(90deg, #ffc400, #c60b1e); text-shadow: 1px 1px 2px #000; } /* X系 黄红渐变 */
-.IT { background: linear-gradient(90deg, #cd212a, #ffffff, #008c45); text-shadow: 1px 1px 3px #000; } /* I系 红白绿渐变 */
-
+/* 各系背景色 */
+.FR { background: #006fb4; }
+.DE { background: #1a1a1a; }
+.US { background: #f5f5dc; color: #000; }
+.RU { background: #005a00; }
+.CN { background: #90ee90; color: #000; }
+.SE { background: linear-gradient(90deg, #005bc5, #ffcd00); text-shadow: 1px 1px 2px #000; }
+.UK { background: linear-gradient(135deg, #c8102e 0%, #c8102e 33.33%, #ffffff 33.33%, #ffffff 66.66%, #012169 66.66%, #012169 100%); text-shadow: 1px 1px 3px #000; }
+.PL { background: #ff8c00; }
+.JK { background: #654321; }
+.JP { background: #ffffff; color: #000; border: 1px solid #ccc; }
+.SP { background: linear-gradient(90deg, #ffc400, #c60b1e); text-shadow: 1px 1px 2px #000; }
+.IT { background: linear-gradient(90deg, #cd212a, #ffffff, #008c45); text-shadow: 1px 1px 3px #000; }
 
 /* 详情模态页 */
 #detail{display:none; position:fixed; inset:0; background:var(--bg-color); z-index: 100; overflow-y: auto;}
@@ -97,10 +95,10 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 .author-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .author-name { font-size: 20px; font-weight: bold; }
 
-/* 1. 原Lv区域升级为自定义头衔 */
+/* 自定义头衔 */
 .author-title-badge { background: #e2f0e3; color: #52a55d; font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
 
-/* 2. 原A2区域升级为作品浏览（支持点击过滤） */
+/* 作品浏览按钮 */
 .author-work-preview { font-size: 12px; background: rgba(90,169,255,0.15); color: #5aa9ff; border: 1px solid #5aa9ff; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 4px; cursor: pointer; transition: background 0.2s; }
 .author-work-preview:active { background: rgba(90,169,255,0.3); }
 
@@ -126,20 +124,19 @@ header { position:sticky; top:0; background:var(--header-bg); padding:10px; z-in
 #marquee div{white-space:nowrap; padding-left:100%; animation:mar 15s linear infinite}
 @keyframes mar{to{transform:translateX(-100%)}}
 body { padding-bottom: 25px; }
-/* 加载画面整体遮罩层 */
+
+/* 加载画面 */
 #loading-screen {
     position: fixed;
     inset: 0;
-    background: #111; /* 黑色背景 */
-    z-index: 9999; /* 保证它盖住页面上所有东西 */
+    background: #111;
+    z-index: 9999;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.5s ease; /* 淡出动画 */
+    transition: opacity 0.5s ease;
 }
-
-/* 加载图片样式 */
 #loading-image {
     width: 80%;
     max-width: 400px;
@@ -149,8 +146,6 @@ body { padding-bottom: 25px; }
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     object-fit: cover;
 }
-
-/* 进度条外框 */
 #progress-container {
     width: 70%;
     max-width: 350px;
@@ -161,16 +156,12 @@ body { padding-bottom: 25px; }
     border: 1px solid #555;
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
 }
-
-/* 蓝色渐变进度条 */
 #progress-bar {
     width: 0%;
     height: 100%;
     background: linear-gradient(90deg, #5aa9ff, #005bc5);
-    transition: width 0.4s ease; /* 进度条移动的平滑过渡效果 */
+    transition: width 0.4s ease;
 }
-
-/* 状态文字 */
 #loading-text {
     margin-top: 15px;
     font-size: 14px;
@@ -187,22 +178,20 @@ body { padding-bottom: 25px; }
     border-radius: 4px;
     outline: none;
 }
-/* ================= 登录卡片 ================= */
 
+/* 登录卡片 */
 .login-card{
     background:var(--header-bg);
     border-radius:12px;
     padding:20px;
     margin-top:15px;
 }
-
 .login-title{
     text-align:center;
     font-size:22px;
     font-weight:bold;
     margin-bottom:20px;
 }
-
 .login-input{
     width:100%;
     box-sizing:border-box;
@@ -215,12 +204,10 @@ body { padding-bottom: 25px; }
     border:1px solid var(--border-color);
     font-size:15px;
 }
-
 .login-btn-box{
     display:flex;
     gap:10px;
 }
-
 .login-btn{
     flex:1;
     padding:12px;
@@ -232,15 +219,12 @@ body { padding-bottom: 25px; }
     font-weight:bold;
     cursor:pointer;
 }
-
 .login-btn:active{
     opacity:0.8;
 }
-
 .user-panel{
     display:none;
 }
-
 .user-avatar{
     width:80px;
     height:80px;
@@ -250,25 +234,21 @@ body { padding-bottom: 25px; }
     border:3px solid #5aa9ff;
     object-fit:cover;
 }
-
 .user-name{
     text-align:center;
     margin-top:10px;
     font-size:22px;
     font-weight:bold;
 }
-
 .user-role{
     text-align:center;
     margin-top:5px;
     color:#5aa9ff;
     font-size:14px;
 }
-
 .user-menu{
     margin-top:20px;
 }
-
 .user-menu button{
     width:100%;
     padding:12px;
@@ -280,24 +260,20 @@ body { padding-bottom: 25px; }
     border:1px solid var(--border-color);
     cursor:pointer;
 }
-
 </style>
 </head>
 <body oncontextmenu="return false">
 <div id="loading-screen">
     <img id="loading-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="width: 80%; max-width: 400px; height: auto; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); object-fit: cover;">
-
-    
     <div id="progress-container">
         <div id="progress-bar"></div>
     </div>
-    
     <div id="loading-text">正在初始化...</div>
-        <button id="skip-btn" onclick="skipLoading()" style="margin-top: 20px; padding: 5px 15px; background: transparent; border: 1px solid #555; color: #888; border-radius: 15px; font-size: 12px; cursor: pointer;">跳过加载</button>
+    <button id="skip-btn" onclick="skipLoading()" style="margin-top: 20px; padding: 5px 15px; background: transparent; border: 1px solid #555; color: #888; border-radius: 15px; font-size: 12px; cursor: pointer;">跳过加载</button>
 </div>
 
 <header>
-        <div class="tabs">
+    <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('tank-page', this)">坦克</button>
         <button class="tab-btn" onclick="switchTab('author-page', this)">作者</button>
         <button class="tab-btn" onclick="switchTab('tools-page', this)">工具</button>
@@ -305,7 +281,6 @@ body { padding-bottom: 25px; }
         <button class="tab-btn" onclick="switchTab('user-page', this)">我的</button>
         <button class="tab-btn" onclick="switchTab('settings-page', this)">设置</button>
     </div>
-
     
     <div id="header-filters" class="filter-bar">
         <input id="search" placeholder="搜索坦克名称">
@@ -330,7 +305,6 @@ body { padding-bottom: 25px; }
             <option>IV</option><option>V</option><option>VI</option><option>VII</option>
             <option>VIII</option><option>IX</option><option>X</option><option>XI</option>
         </select>
-
         <select id="type">
             <option value="">全部类型</option>
             <option>工程车</option><option>重坦</option><option>中坦</option>
@@ -353,72 +327,25 @@ body { padding-bottom: 25px; }
     <div id="author-card-container"></div>
 </div>
 
+<!-- 3. 我的页面 (用户登录) -->
 <div id="user-page" class="page-content">
-
-<div id="login-box">
-
-<h2>用户登录</h2>
-
-<input id="login-user"
-placeholder="用户名"
-style="width:100%;padding:10px;margin:5px 0;">
-
-<input id="login-pass"
-type="password"
-placeholder="密码"
-style="width:100%;padding:10px;margin:5px 0;">
-
-<div style="display:flex;gap:10px;margin-top:10px;">
-
-<button onclick="login()"
-style="flex:1;padding:10px;">
-登录
-</button>
-
-<button onclick="registerUser()"
-style="flex:1;padding:10px;">
-注册
-</button>
-
+    <div id="login-box">
+        <h2>成员登录</h2>
+        <input id="login-user" type="text" placeholder="用户名" style="width:100%;padding:10px;margin:5px 0;">
+        <input id="login-pass" type="password" placeholder="密码" style="width:100%;padding:10px;margin:5px 0;">
+        <button onclick="login()" style="width:100%;padding:12px;margin-top:10px;">登录</button>
+    </div>
+    <div id="user-info" style="display:none;">
+        <h2 id="welcome-user"></h2>
+        <div class="author-card-box">
+            <p>账号类型：<span id="user-role">普通成员</span></p>
+            <p>收藏数量：<span id="fav-count">0</span></p>
+        </div>
+        <button onclick="logout()" style="width:100%;padding:12px;margin-top:15px;">退出登录</button>
+    </div>
 </div>
 
-</div>
-
-<div id="user-info"
-style="display:none;">
-
-<h2 id="welcome-user"></h2>
-
-<div class="author-card-box">
-
-<p>账号类型：
-<span id="user-role">
-普通用户
-</span>
-
-</p>
-
-<p>
-收藏数量：
-<span id="fav-count">
-0
-</span>
-</p>
-
-</div>
-
-<button
-onclick="logout()"
-style="width:100%;
-padding:12px;
-margin-top:15px;">
-退出登录
-</button>
-
-     </div>
-</div>
-
-- 3. 设置列表页面 -->
+<!-- 4. 设置页面 -->
 <div id="settings-page" class="page-content">
     <div class="setting-item">
         <span>白天 / 夜晚模式</span>
@@ -431,18 +358,17 @@ margin-top:15px;">
             <option value="list">列表排序模式</option>
         </select>
     </div>
-    <!-- 增加：版本号显示栏 -->
     <div class="setting-item">
         <span>当前版本</span>
         <span style="font-weight: normal; opacity: 0.5; font-family: monospace; font-size: 15px;">v0.9.22</span>
     </div>
-        <div style="text-align:center; margin-top:30px; padding-bottom:10px;">
+    <div style="text-align:center; margin-top:30px; padding-bottom:10px;">
         <img src="qrcode.PNG" onerror="this.src='https://via.placeholder.com/150?text=QR+Code'" style="width:150px; height:150px; border-radius:10px; border:2px solid var(--border-color);">
         <div style="font-size:13px; color:var(--text-color); opacity:0.6; margin-top:8px;">扫描二维码获取更多资讯</div>
     </div>
-
 </div>
 
+<!-- 5. 工具页面 -->
 <div id="tools-page" class="page-content">
     <div class="author-card-box">
         <h3 style="margin-top:0;">🛡️ 倾斜装甲等效计算器</h3>
@@ -463,7 +389,7 @@ margin-top:15px;">
             </div>
         </div>
     </div>
-        <div class="author-card-box" style="margin-top: 15px;">
+    <div class="author-card-box" style="margin-top: 15px;">
         <h3 style="margin-top:0;">🐎 动力与推重比计算器</h3>
         <p style="font-size:12px; color:#aaa;">填写任意两项，留空想计算的那一项，点击计算。</p>
         <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
@@ -525,21 +451,17 @@ margin-top:15px;">
     <div class="author-card-box" style="margin-top: 15px;">
         <h3 style="margin-top:0;">💥 火力与 DPM 计算器</h3>
         <p style="font-size:12px; color:#aaa;">填写已知数值，留空想求的数值。会自动进行反推。</p>
-        
         <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
             <input type="checkbox" id="calc-dpm-mode" onchange="toggleDpmMode()" style="width:18px; height:18px; accent-color: #5aa9ff; cursor:pointer;">
             <span style="font-size: 14px; color: #5aa9ff; font-weight: bold; cursor:pointer;" onclick="document.getElementById('calc-dpm-mode').click()">高级选项：开启弹夹车模式</span>
         </div>
-
         <div style="display:flex; flex-direction:column; gap:10px; margin-top:5px;">
             <div class="setting-item" style="padding:10px 0; border:none;">
                 <span>单发损伤</span><input type="number" id="calc-dmg" style="width:100px; padding:5px;">
             </div>
-            
             <div class="setting-item" id="calc-item-reload" style="padding:10px 0; border:none;">
                 <span>装填时间 (秒)</span><input type="number" id="calc-reload" style="width:100px; padding:5px;">
             </div>
-
             <div class="setting-item dpm-auto-item" style="padding:10px 0; border:none; display:none;">
                 <span>弹夹炮弹数 (发)</span><input type="number" id="calc-clip" style="width:100px; padding:5px;">
             </div>
@@ -549,23 +471,21 @@ margin-top:15px;">
             <div class="setting-item dpm-auto-item" style="padding:10px 0; border:none; display:none;">
                 <span>长装填时间 (秒)</span><input type="number" id="calc-long" style="width:100px; padding:5px;">
             </div>
-
             <div class="setting-item" style="padding:10px 0; border:none;">
                 <span>每分钟射速 (发/分)</span><input type="number" id="calc-rpm" style="width:100px; padding:5px;">
             </div>
             <div class="setting-item" style="padding:10px 0; border:none;">
                 <span>DPM (每分钟伤害)</span><input type="number" id="calc-dpm" style="width:100px; padding:5px;">
             </div>
-            
             <div style="display:flex; gap:10px; margin-top:10px;">
                 <button onclick="calculateFirepower()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算</button>
                 <button onclick="clearFirepower()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
             </div>
         </div>
     </div>
-
 </div>
 
+<!-- 6. 小游戏页面 -->
 <div id="game-page" class="page-content">
     <div class="author-card-box" style="text-align:center;">
         <h3 style="margin-top:0;">🎮 坦克突围 2D跑酷</h3>
@@ -590,27 +510,84 @@ margin-top:15px;">
     <div id="desc"></div>
 </div>
 
-<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.8.1】 </div></div>
+<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.9.22】 </div></div>
 
 <script>
+// ============ 用户系统：预置成员登录 ============
+let currentUser = null;
 
-let currentUser=null;
+const members = {
+    "admin": {
+        username: "ALAN",
+        password: "1989518",
+        role: "member",
+        nickname: "alanbecker"
+    },
+    "cael": {
+        username: "cael",
+        password: "Aa1217",
+        role: "admin",
+        nickname: "烛梦Cael"
+    },
+        "bvvd": {
+        username: "BVV_D",
+        password: "bvvd",
+        role: "member",
+        nickname: "巴兰尼科夫"
+    },
+    "445": {
+        username: "445",
+        password: "Draw445",
+        role: "member",
+        nickname: "445"
+    },
+    "tiger": {
+        username: "tiger",
+        password: "tigerC",
+        role: "member",
+        nickname: "湾仔虎"
+    }
+};
 
-let users=
-JSON.parse(
-localStorage.getItem("users")
-)||{
+// 页面加载时恢复登录
+(function () {
+    let savedUser = localStorage.getItem("loginUser");
+    if (savedUser && members[savedUser]) {
+        currentUser = members[savedUser];
+        showUser();
+    }
+})();
 
-admin:{
-username:"admin",
-password:"123456",
-role:"admin"
+function login() {
+    let u = document.getElementById("login-user").value.trim();
+    let p = document.getElementById("login-pass").value.trim();
+    if (members[u] && members[u].password === p) {
+        currentUser = members[u];
+        localStorage.setItem("loginUser", u);
+        showUser();
+    } else {
+        alert("账号或密码错误");
+    }
 }
 
-};
-// 【新增】优先预加载主角图片
+function logout() {
+    currentUser = null;
+    localStorage.removeItem("loginUser");
+    document.getElementById("login-box").style.display = "block";
+    document.getElementById("user-info").style.display = "none";
+}
+
+function showUser() {
+    document.getElementById("login-box").style.display = "none";
+    document.getElementById("user-info").style.display = "block";
+    document.getElementById("welcome-user").innerHTML = "欢迎回来，" + currentUser.nickname;
+    document.getElementById("user-role").innerHTML = 
+        currentUser.role === "admin" ? "管理员" : "成员";
+}
+
+// 【优先预加载主角图片】
 const playerImg = new Image();
-playerImg.src = "player.PNG"; // 请务必替换成你实际的图片名字
+playerImg.src = "player.PNG";
 playerImg.onload = () => {
     console.log("主角图片已优先加载完成！");
 };
@@ -630,11 +607,11 @@ const authors = {
     "cael": {
         name: "烛梦Cael",
         avatar: "avatar.JPG",
-        title: "站长",                
-        workText: "🖼️ 作品浏览",                    
-        fansCount: 7,                
+        title: "站长",
+        workText: "🖼️ 作品浏览",
+        fansCount: 7,
         joinTime: "2026-6-7 20:45:15",
-        totalWorks: 67               
+        totalWorks: 67
     },
     "445": {
         name: "445",
@@ -656,212 +633,42 @@ const authors = {
     }
 };
 
-// 【坦克数据库列表】
-const tanks=[
-{
-name:"EBG-62",
-nation:"FR",
-tier:"VIII",
-type:"工程车",
-authorId: "cael", 
-imgs:["EBG-62.JPG"],
-text:"这里填写详细介绍。"
-},
-{
-name:"EBG-54",
-nation:"FR",
-tier:"IX",
-type:"工程车",
-authorId: "cael",
-imgs:["EBG-54.JPG"],
-text:"这里填写详细介绍。"
-},
-{
-name:"EBG-58",
-nation:"FR",
-tier:"X",
-type:"工程车",
-authorId: "cael",
-imgs:["EBG-58.JPG"],
-text:"这里填写详细介绍。"
-},
-{
-name:"Ikv 62",
-nation:"SE",
-tier:"VIII",
-type:"中坦",
-authorId: "cael", 
-imgs:["IKV-62.JPG"],
-text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
-},
-{
-name:"Ikv 82",
-nation:"SE",
-tier:"IX",
-type:"中坦",
-authorId: "cael", 
-imgs:["Ikv-82.JPG"],
-text:`历史参考: \nIkv 82是瑞典六十年代研发的中型坦克...`
-},
-{
-name:"Strv-L1",
-nation:"SE",
-tier:"X",
-type:"中坦",
-authorId: "cael", 
-imgs:["Strv-L1.JPG"],
-text:`历史参考: \nStrv-L1是瑞典六十年代研发的中型坦克...`
-},
-{
-name:"SAL V2",
-nation:"SE",
-tier:"X",
-type:"重坦",
-authorId: "cael", 
-imgs:["SALV2.JPG"],
-text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
-},
-{
-name:"SAAB-AMX 105",
-nation:"SE",
-tier:"X",
-type:"中坦",
-authorId: "cael", 
-imgs:["AMXSAAB.JPG"],
-text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...`
-},
-{
-name:"ASTRL-R22 105K5",
-nation:"US",
-tier:"VIII",
-type:"反坦",
-authorId: "cael", 
-imgs:["ASTRL105.JPG"],
-text:"AAA "
-},
-{
-name:"ASTRL-R22 120K7",
-nation:"US",
-tier:"VIII",
-type:"反坦",
-authorId: "cael", 
-imgs:["ASTRL120.PNG"],
-text:"AAA "
-},
-{
-name:"AGR MT",
-nation:"US",
-tier:"VIII",
-type:"中坦",
-authorId: "cael", 
-imgs:["AGFDMT.PNG"],
-text:"AAA "
-},
-{
-name:"780工程",
-nation:"RU",
-tier:"IX",
-type:"重坦",
-authorId: "cael", 
-imgs:["obj780.JPG"],
-text:"AAA "
-},
-{
-name:"156工程 V",
-nation:"RU",
-tier:"VIII",
-type:"反坦",
-authorId: "cael", 
-imgs:["obj156.JPG"],
-text:"AAA "
-},
-{
-name:"短吻鳄MK.X",
-nation:"UK",
-tier:"XI",
-type:"中坦",
-authorId: "cael", 
-imgs:["MKX.JPG"],
-text:"AAA "
-},
-{
-name:"TNH T Vz.57",
-nation:"JK",
-tier:"XI",
-type:"重坦",
-authorId: "cael", 
-imgs:["Vz57.JPG"],
-text:"AAA "
-},
-{
-name:"SDPS 72 C",
-nation:"PL",
-tier:"XI",
-type:"反坦",
-authorId: "cael", 
-imgs:["SDPS.JPG"],
-text:"AAA "
-},
-{
-name:"M4/A13 R22",
-nation:"UK",
-tier:"V",
-type:"中坦",
-authorId: "cael", 
-imgs:["M4-A13.JPG"],
-text:"AAA "
-},
-{
-name:"FSV18",
-nation:"UK",
-tier:"VI",
-type:"中坦",
-authorId: "cael", 
-imgs:["M18-6x6.JPG"],
-text:"AAA "
-},
-{
-name:"AVK66 Utkas2 15cm",
-nation:"SE",
-tier:"VIII",
-type:"火炮",
-authorId: "cael", 
-imgs:["AVK66.JPG"],
-text:"AAA "
-},
-{
-name:"AVK27 Utkas1 12cm",
-nation:"SE",
-tier:"VII",
-type:"火炮",
-authorId: "cael", 
-imgs:["AVK27.JPG"],
-text:"AAA "
-},
-{
-name:"EBG-60",
-nation:"FR",
-tier:"XI",
-type:"工程车",
-authorId: "cael",
-imgs:["EBG-60.JPG"],
-text:"这里填写详细介绍。"
-}
+// 【坦克数据库】
+const tanks = [
+    { name:"EBG-62", nation:"FR", tier:"VIII", type:"工程车", authorId:"cael", imgs:["EBG-62.JPG"], text:"这里填写详细介绍。" },
+    { name:"EBG-54", nation:"FR", tier:"IX", type:"工程车", authorId:"cael", imgs:["EBG-54.JPG"], text:"这里填写详细介绍。" },
+    { name:"EBG-58", nation:"FR", tier:"X", type:"工程车", authorId:"cael", imgs:["EBG-58.JPG"], text:"这里填写详细介绍。" },
+    { name:"Ikv 62", nation:"SE", tier:"VIII", type:"中坦", authorId:"cael", imgs:["IKV-62.JPG"], text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...` },
+    { name:"Ikv 82", nation:"SE", tier:"IX", type:"中坦", authorId:"cael", imgs:["Ikv-82.JPG"], text:`历史参考: \nIkv 82是瑞典六十年代研发的中型坦克...` },
+    { name:"Strv-L1", nation:"SE", tier:"X", type:"中坦", authorId:"cael", imgs:["Strv-L1.JPG"], text:`历史参考: \nStrv-L1是瑞典六十年代研发的中型坦克...` },
+    { name:"SAL V2", nation:"SE", tier:"X", type:"重坦", authorId:"cael", imgs:["SALV2.JPG"], text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...` },
+    { name:"SAAB-AMX 105", nation:"SE", tier:"X", type:"中坦", authorId:"cael", imgs:["AMXSAAB.JPG"], text:`历史参考: \nIkv 63是瑞典六十年代研发的中型坦克...` },
+    { name:"ASTRL-R22 105K5", nation:"US", tier:"VIII", type:"反坦", authorId:"cael", imgs:["ASTRL105.JPG"], text:"AAA " },
+    { name:"ASTRL-R22 120K7", nation:"US", tier:"VIII", type:"反坦", authorId:"cael", imgs:["ASTRL120.PNG"], text:"AAA " },
+    { name:"AGR MT", nation:"US", tier:"VIII", type:"中坦", authorId:"cael", imgs:["AGFDMT.PNG"], text:"AAA " },
+    { name:"780工程", nation:"RU", tier:"IX", type:"重坦", authorId:"cael", imgs:["obj780.JPG"], text:"AAA " },
+    { name:"156工程 V", nation:"RU", tier:"VIII", type:"反坦", authorId:"cael", imgs:["obj156.JPG"], text:"AAA " },
+    { name:"短吻鳄MK.X", nation:"UK", tier:"XI", type:"中坦", authorId:"cael", imgs:["MKX.JPG"], text:"AAA " },
+    { name:"TNH T Vz.57", nation:"JK", tier:"XI", type:"重坦", authorId:"cael", imgs:["Vz57.JPG"], text:"AAA " },
+    { name:"SDPS 72 C", nation:"PL", tier:"XI", type:"反坦", authorId:"cael", imgs:["SDPS.JPG"], text:"AAA " },
+    { name:"M4/A13 R22", nation:"UK", tier:"V", type:"中坦", authorId:"cael", imgs:["M4-A13.JPG"], text:"AAA " },
+    { name:"FSV18", nation:"UK", tier:"VI", type:"中坦", authorId:"cael", imgs:["M18-6x6.JPG"], text:"AAA " },
+    { name:"AVK66 Utkas2 15cm", nation:"SE", tier:"VIII", type:"火炮", authorId:"cael", imgs:["AVK66.JPG"], text:"AAA " },
+    { name:"AVK27 Utkas1 12cm", nation:"SE", tier:"VII", type:"火炮", authorId:"cael", imgs:["AVK27.JPG"], text:"AAA " },
+    { name:"EBG-60", nation:"FR", tier:"XI", type:"工程车", authorId:"cael", imgs:["EBG-60.JPG"], text:"这里填写详细介绍。" }
 ];
 
 let currentAuthorFilter = "";
 
-const grid=document.getElementById("grid");
+const grid = document.getElementById("grid");
 const filters = document.getElementById("header-filters");
 
 // 选项卡切换
 function switchTab(pageId, btn, keepFilter = false) {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    
     document.getElementById(pageId).classList.add('active');
     btn.classList.add('active');
-    
     if(pageId === 'tank-page') {
         filters.style.display = 'grid';
         if(!keepFilter) {
@@ -889,7 +696,6 @@ function draw(){
     if(!grid) return;
     grid.innerHTML="";
     const currentLayout = document.getElementById("layout-select") ? document.getElementById("layout-select").value : "grid";
-    
     const hintBar = document.getElementById("author-filter-hint");
     const hintText = document.getElementById("filter-hint-text");
     if(currentAuthorFilter && authors[currentAuthorFilter]) {
@@ -898,19 +704,15 @@ function draw(){
     } else {
         hintBar.style.display = "none";
     }
-    
     tanks.forEach(t=>{
         if((!nation.value||t.nation===nation.value)
         &&(!tier.value||t.tier===tier.value)
         &&(!type.value||t.type===type.value)
         &&(!currentAuthorFilter||t.authorId===currentAuthorFilter)
         &&t.name.toLowerCase().includes(search.value.toLowerCase())){
-            
             let card=document.createElement("div");
             card.className="card "+t.nation;
-            
             let iconHtml = getIconHtml(t.type);
-            
             if(currentLayout === 'grid') {
                 card.innerHTML = `
                     <div class='title-container'>${iconHtml}<span>${t.name}</span></div>
@@ -926,7 +728,6 @@ function draw(){
                     <span class='type-badge'>${t.tier} / ${t.type}</span>
                 `;
             }
-            
             card.onclick=()=>showTank(t);
             grid.appendChild(card);
         }
@@ -951,7 +752,6 @@ function renderAllAuthors() {
     const container = document.getElementById("author-card-container");
     if(!container) return;
     container.innerHTML = "";
-    
     Object.keys(authors).forEach(key => {
         const author = authors[key];
         let cardHtml = `
@@ -1015,7 +815,6 @@ function showTank(t){
     t.imgs.forEach(i=>{
         gallery.innerHTML+="<img src='"+i+"' onerror=\"this.src='https://via.placeholder.com/300x200?text=No+Image'\">";
     });
-    
     const authorZone = document.getElementById("detail-author-zone");
     if(authorZone) {
         const tankAuthor = authors[t.authorId] || authors["cael"];
@@ -1042,10 +841,10 @@ type.onchange=draw;
 // 初始化执行
 renderAllAuthors();
 draw();
+
 // 跳过加载函数
 function skipLoading() {
     const loadingScreen = document.getElementById('loading-screen');
-    // 直接强制把进度拉到 100% 并隐藏画面
     loadingScreen.style.opacity = "0";
     setTimeout(() => {
         loadingScreen.style.display = "none";
@@ -1057,46 +856,17 @@ window.addEventListener('load', () => {
     const loadingScreen = document.getElementById('loading-screen');
     const progressBar = document.getElementById('progress-bar');
     const loadingText = document.getElementById('loading-text');
-    const loadingImage = document.getElementById('loading-image'); // 新增：获取图片元素
+    const loadingImage = document.getElementById('loading-image');
 
-    // ==========================================
- window.addEventListener(
-"load",
-()=>{
-
-let save=
-localStorage.getItem(
-"loginUser"
-);
-
-if(
-save
-&&
-users[save]
-){
-
-currentUser=
-users[save];
-
-showUser();
-
-}
-
-});   
-    // 【新增】：多张加载图随机切换逻辑
-    // 把你所有的加载图片文件名写在这个数组里（注意加引号和逗号）
     const loadingBgs = [
         "bg1.PNG",
         "bg2.JPG",
         "bg3.JPG",
         "tank_load.JPG"
     ];
-    // 随机抽取一张，并替换到画面上
     const randomBg = loadingBgs[Math.floor(Math.random() * loadingBgs.length)];
     loadingImage.src = randomBg;
-    // ==========================================
 
-    // 定义加载阶段和对应的文字 (这部分和你之前的一样，保持不变即可)
     const steps = [
         { progress: 15, text: "正在连接potato2服务器..." },
         { progress: 40, text: "正在解析车辆图片与文本..." },
@@ -1109,18 +879,13 @@ showUser();
 
     function simulateLoading() {
         if (stepIndex < steps.length) {
-            // 更新进度条和文字
             progressBar.style.width = steps[stepIndex].progress + "%";
             loadingText.innerText = steps[stepIndex].text;
             stepIndex++;
-            
-            // 随机延迟 0.2秒 ~ 0.6秒，模拟真实的顿挫加载感
-            setTimeout(simulateLoading, Math.random() * 400 + 200); 
+            setTimeout(simulateLoading, Math.random() * 400 + 200);
         } else {
-            // 达到 100% 后，延迟一点点再开始淡出，让玩家看清“加载完成”
             setTimeout(() => {
-                loadingScreen.style.opacity = "0"; // 触发CSS淡出
-                // 等待淡出动画（0.5秒）结束后，彻底移除隐藏
+                loadingScreen.style.opacity = "0";
                 setTimeout(() => {
                     loadingScreen.style.display = "none";
                 }, 500);
@@ -1128,7 +893,6 @@ showUser();
         }
     }
 
-    // 启动加载动画
     simulateLoading();
 });
 
@@ -1137,17 +901,13 @@ function calculateArmor() {
     let act = parseFloat(document.getElementById('calc-act').value);
     let ang = parseFloat(document.getElementById('calc-ang').value);
     let eff = parseFloat(document.getElementById('calc-eff').value);
-
     if (!isNaN(act) && !isNaN(ang) && isNaN(eff)) {
-        // 算等效: E = A / cos(角度)
         let rad = ang * Math.PI / 180;
         document.getElementById('calc-eff').value = (act / Math.cos(rad)).toFixed(2);
     } else if (!isNaN(eff) && !isNaN(ang) && isNaN(act)) {
-        // 算实际: A = E * cos(角度)
         let rad = ang * Math.PI / 180;
         document.getElementById('calc-act').value = (eff * Math.cos(rad)).toFixed(2);
     } else if (!isNaN(act) && !isNaN(eff) && isNaN(ang)) {
-        // 算角度: 角度 = arccos(A / E)
         if (act > eff) { alert("物理常识错误：实际厚度不能大于等效厚度！"); return; }
         let rad = Math.acos(act / eff);
         document.getElementById('calc-ang').value = (rad * 180 / Math.PI).toFixed(2);
@@ -1155,27 +915,20 @@ function calculateArmor() {
         alert("请正确填写：必须且只能填写其中的两项数值！");
     }
 }
-
 function clearCalc() {
     document.getElementById('calc-act').value = '';
     document.getElementById('calc-ang').value = '';
     document.getElementById('calc-eff').value = '';
 }
 
-// ==================== 小游戏：2D 跑酷逻辑 ===================
+// ==================== 小游戏：2D 跑酷逻辑 ====================
 let gameLoop, ctx, canvas;
-// 修改为复用预加载对象
-let player = { 
-    lane: 1, 
-    img: playerImg // 直接使用上面定义的 playerImg
-};
-
+let player = { lane: 1, img: playerImg };
 let obstacles = [], gameSpeed = 5, score = 0, frames = 0, isGameOver = false;
 
 async function enterFullscreenGame() {
     const container = document.getElementById('game-container');
     container.style.display = 'flex';
-    // 尝试进入全屏并强制横屏 (需要浏览器支持)
     if (container.requestFullscreen) {
         try { await container.requestFullscreen(); } catch (e) {}
     }
@@ -1208,8 +961,6 @@ function initGame() {
 function runGame() {
     if (isGameOver) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 绘制三条车道线
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 4;
     ctx.setLineDash([20, 20]);
@@ -1217,49 +968,31 @@ function runGame() {
     ctx.beginPath(); ctx.moveTo(0, 266); ctx.lineTo(800, 266); ctx.stroke();
     ctx.setLineDash([]);
 
-    // ==========================================
-    // 【终极提速与计分逻辑】
-    // ==========================================
     frames++;
-    
-    // 1. 分数增长：随速度越快，跳分越猛
     let scoreInterval = Math.max(1, Math.floor(150 / gameSpeed)); 
     if (frames % scoreInterval === 0) {
         score++; 
         document.getElementById('game-score').innerText = score; 
     }
-
-    // 2. 疯狂提速：每 200 帧（约 3 秒）提升 0.8 速度
     if (frames % 200 === 0) { 
         gameSpeed += 0.8; 
     } 
-
-    // 3. 障碍生成：速度越快，刷得越密（概率动态调整）
     let spawnInterval = Math.max(25, Math.floor(120 - gameSpeed * 6));
     if (frames % spawnInterval === 0) {
         let lane1 = Math.floor(Math.random() * 3);
         let lane2 = Math.floor(Math.random() * 3);
         obstacles.push({ x: 800, lane: lane1 });
-        
-        // 游戏后期（速度>10），双排障碍概率提升到 75%
         let doubleObsChance = gameSpeed > 10 ? 0.75 : 0.5;
         if(Math.random() > (1 - doubleObsChance) && lane1 !== lane2) { 
             obstacles.push({ x: 800, lane: lane2 }); 
         }
     }
 
-    // 移动与绘制障碍物
     for (let i = 0; i < obstacles.length; i++) {
         let obs = obstacles[i];
-        
-        // 【核心优化】：使用 Math.round 对齐整数像素，强制消除抖动
         obs.x -= Math.round(gameSpeed); 
-        
         ctx.fillStyle = "#ff4757";
-        // 确保坐标也是整数
         ctx.fillRect(Math.round(obs.x), 30 + obs.lane * 133, 60, 60);
-
-        // 碰撞检测逻辑保持不变
         if (obs.x < 110 && obs.x + 60 > 50 && obs.lane === player.lane) {
             isGameOver = true;
             ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -1268,39 +1001,32 @@ function runGame() {
         }
     }
     obstacles = obstacles.filter(obs => obs.x > -60);
-    // ==========================================
 
-  //  这是专为你 1167x455 尺寸优化的长方形代码：
-let playerY = 30 + player.lane * 133;
-if (player.img.complete && player.img.naturalHeight !== 0) {
-    // 保持 1167:455 的比例，设定高度为 40 像素，宽度按比例自动算出约为 102 像素
-    let pHeight = 40; 
-    let pWidth = (1167 / 455) * pHeight; // 自动计算完美比例
-    
-    // 稍微调整一下 Y 轴偏置，让它在赛道中间
-    ctx.drawImage(player.img, 50, playerY + 10, pWidth, pHeight); 
-} else {
-    ctx.fillStyle = "#5aa9ff"; ctx.fillRect(50, playerY + 10, 102, 40); // 备用方块也变成长方形
-}
-
+    let playerY = 30 + player.lane * 133;
+    if (player.img.complete && player.img.naturalHeight !== 0) {
+        let pHeight = 40; 
+        let pWidth = (1167 / 455) * pHeight; 
+        ctx.drawImage(player.img, 50, playerY + 10, pWidth, pHeight); 
+    } else {
+        ctx.fillStyle = "#5aa9ff"; ctx.fillRect(50, playerY + 10, 102, 40);
+    }
     if (!isGameOver) requestAnimationFrame(runGame);
 }
 
-// 监听游戏点击/滑动控制 (点击上半屏往上走，下半屏往下走)
 document.getElementById('game-container').addEventListener('mousedown', (e) => {
-    if(isGameOver) { initGame(); return; } // 重开
-    if (e.target.tagName === "BUTTON") return; // 防止误触退出按钮
+    if(isGameOver) { initGame(); return; }
+    if (e.target.tagName === "BUTTON") return;
     let rect = canvas.getBoundingClientRect();
     let clickY = e.clientY - rect.top;
     if (clickY < rect.height / 2 && player.lane > 0) player.lane--;
     else if (clickY >= rect.height / 2 && player.lane < 2) player.lane++;
 });
-// ==================== 工具：推重比计算器 ====================
+
+// ==================== 其他工具计算器 ====================
 function calculatePTW() {
     let w = parseFloat(document.getElementById('calc-weight').value);
     let hp = parseFloat(document.getElementById('calc-hp').value);
     let ptw = parseFloat(document.getElementById('calc-ptw').value);
-
     if (!isNaN(w) && !isNaN(hp) && isNaN(ptw)) {
         document.getElementById('calc-ptw').value = (hp / w).toFixed(2);
     } else if (!isNaN(w) && !isNaN(ptw) && isNaN(hp)) {
@@ -1317,23 +1043,18 @@ function clearPTW() {
     document.getElementById('calc-ptw').value = '';
 }
 
-// ==================== 工具：轮式转向计算器 ====================
 function calculateSteering() {
     let wb = parseFloat(document.getElementById('calc-wheelbase').value);
     let ang = parseFloat(document.getElementById('calc-steer-ang').value);
     let rad = parseFloat(document.getElementById('calc-steer-rad').value);
-
     if (!isNaN(wb) && !isNaN(ang) && isNaN(rad)) {
-        // 算半径: R = 轴距 / sin(角度)
         let radAngle = ang * Math.PI / 180;
         document.getElementById('calc-steer-rad').value = (wb / Math.sin(radAngle)).toFixed(2);
     } else if (!isNaN(wb) && !isNaN(rad) && isNaN(ang)) {
-        // 算角度: 角度 = arcsin(轴距 / 半径)
         if (wb > rad) { alert("物理限制：轴距不能大于转向半径！"); return; }
         let radAngle = Math.asin(wb / rad);
         document.getElementById('calc-steer-ang').value = (radAngle * 180 / Math.PI).toFixed(2);
     } else if (!isNaN(ang) && !isNaN(rad) && isNaN(wb)) {
-        // 算轴距: 轴距 = 半径 * sin(角度)
         let radAngle = ang * Math.PI / 180;
         document.getElementById('calc-wheelbase').value = (rad * Math.sin(radAngle)).toFixed(2);
     } else {
@@ -1346,14 +1067,10 @@ function clearSteering() {
     document.getElementById('calc-steer-rad').value = '';
 }
 
-// ==================== 工具：回转时间计算器 ====================
 function calculateTurnTime() {
     let rad = parseFloat(document.getElementById('calc-circle-rad').value);
     let spd = parseFloat(document.getElementById('calc-speed').value);
     let time = parseFloat(document.getElementById('calc-turn-time').value);
-
-    // 圆周长 C = 2 * PI * R
-    // 速度转换 v_ms = spd / 3.6 (将 km/h 换算为 m/s)
     if (!isNaN(rad) && !isNaN(spd) && isNaN(time)) {
         let c = 2 * Math.PI * rad;
         let v_ms = spd / 3.6;
@@ -1375,53 +1092,41 @@ function clearTurnTime() {
     document.getElementById('calc-speed').value = '';
     document.getElementById('calc-turn-time').value = '';
 }
-// ==================== 工具：火力与 DPM 计算器 ====================
+
 function toggleDpmMode() {
     let isAuto = document.getElementById('calc-dpm-mode').checked;
-    // 切换单发和弹夹的输入框
     document.getElementById('calc-item-reload').style.display = isAuto ? 'none' : 'flex';
     let autoItems = document.querySelectorAll('.dpm-auto-item');
     autoItems.forEach(item => item.style.display = isAuto ? 'flex' : 'none');
-    clearFirepower(); // 切换模式时清空，防止数据错乱
+    clearFirepower();
 }
 
 function calculateFirepower() {
     let isAuto = document.getElementById('calc-dpm-mode').checked;
-    
     let D = parseFloat(document.getElementById('calc-dmg').value);
     let R = parseFloat(document.getElementById('calc-rpm').value);
     let P = parseFloat(document.getElementById('calc-dpm').value);
-    
-    // 使用多次循环推导，解决复杂联动逆推问题
     for(let i = 0; i < 3; i++) {
-        // 公共推导：已知两个算第三个
         if (!isNaN(D) && !isNaN(R) && isNaN(P)) P = D * R;
         if (!isNaN(P) && !isNaN(R) && isNaN(D)) D = P / R;
         if (!isNaN(P) && !isNaN(D) && isNaN(R)) R = P / D;
-        
         if (isAuto) {
             let C = parseFloat(document.getElementById('calc-clip').value);
             let S = parseFloat(document.getElementById('calc-short').value);
             let L = parseFloat(document.getElementById('calc-long').value);
-            
-            let cycle = NaN; // 弹夹循环周期
+            let cycle = NaN;
             if (!isNaN(C) && !isNaN(R)) cycle = C * 60 / R; 
-            
             if (isNaN(cycle) && !isNaN(L) && !isNaN(C) && !isNaN(S)) {
                 cycle = L + (C - 1) * S;
             }
-            
             if (!isNaN(cycle)) {
                 if (isNaN(R) && !isNaN(C)) R = C * 60 / cycle;
                 if (isNaN(L) && !isNaN(C) && !isNaN(S)) L = cycle - (C - 1) * S;
                 if (isNaN(S) && !isNaN(C) && !isNaN(L) && C > 1) S = (cycle - L) / (C - 1);
             }
-            
-            // 缓存中间结果，供下一次循环补全
             if (!isNaN(C)) document.getElementById('calc-clip').value = C;
             if (!isNaN(S)) document.getElementById('calc-short').value = S;
             if (!isNaN(L)) document.getElementById('calc-long').value = L;
-            
         } else {
             let T = parseFloat(document.getElementById('calc-reload').value);
             if (!isNaN(R) && isNaN(T)) T = 60 / R;
@@ -1429,12 +1134,9 @@ function calculateFirepower() {
             if (!isNaN(T)) document.getElementById('calc-reload').value = T;
         }
     }
-
-    // 回显格式化（处理小数和取整）
     if (!isNaN(D)) document.getElementById('calc-dmg').value = Math.round(D);
     if (!isNaN(R)) document.getElementById('calc-rpm').value = R.toFixed(2);
-    if (!isNaN(P)) document.getElementById('calc-dpm').value = Math.round(P); // 游戏里 DPM 一般取整
-    
+    if (!isNaN(P)) document.getElementById('calc-dpm').value = Math.round(P);
     if (isAuto) {
         let C = parseFloat(document.getElementById('calc-clip').value);
         let S = parseFloat(document.getElementById('calc-short').value);
@@ -1456,136 +1158,6 @@ function clearFirepower() {
     document.getElementById('calc-long').value = '';
     document.getElementById('calc-rpm').value = '';
     document.getElementById('calc-dpm').value = '';
-}
-
-function registerUser(){
-
-let u=
-document.getElementById(
-"login-user"
-).value.trim();
-
-let p=
-document.getElementById(
-"login-pass"
-).value.trim();
-
-if(!u||!p){
-
-alert("请输入用户名和密码");
-
-return;
-
-}
-
-if(users[u]){
-
-alert("用户名已存在");
-
-return;
-
-}
-
-users[u]={
-
-username:u,
-
-password:p,
-
-role:"user"
-
-};
-
-localStorage.setItem(
-"users",
-JSON.stringify(users)
-);
-
-alert("注册成功");
-
-}
-function login(){
-
-let u=
-document.getElementById(
-"login-user"
-).value.trim();
-
-let p=
-document.getElementById(
-"login-pass"
-).value.trim();
-
-if(
-users[u]
-&&
-users[u].password==p
-){
-
-currentUser=
-users[u];
-
-localStorage.setItem(
-"loginUser",
-u
-);
-
-showUser();
-
-}else{
-
-alert("账号或密码错误");
-
-}
-
-}
-function logout(){
-
-currentUser=null;
-
-localStorage.removeItem(
-"loginUser"
-);
-
-document.getElementById(
-"login-box"
-).style.display="block";
-
-document.getElementById(
-"user-info"
-).style.display="none";
-
-}
-function showUser(){
-
-document.getElementById(
-"login-box"
-).style.display="none";
-
-document.getElementById(
-"user-info"
-).style.display="block";
-
-document.getElementById(
-"welcome-user"
-).innerHTML=
-
-"欢迎回来，"+
-currentUser.username;
-
-document.getElementById(
-"user-role"
-).innerHTML=
-
-currentUser.role=="admin"
-?
-
-"管理员"
-
-:
-
-"普通用户";
-
 }
 </script>
 </body>
