@@ -483,6 +483,89 @@ body { padding-bottom: 25px; }
             </div>
         </div>
     </div>
+<div class="author-card-box" style="margin-top: 15px;">
+    <h3 style="margin-top:0;">👁️ 点亮距离计算器</h3>
+    <p style="font-size:12px; color:#aaa;">自动计算综合隐蔽，也可直接手动输入最终隐蔽值。</p>
+    
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+        <!-- 基础隐蔽值 -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>基础隐蔽值 (%)</span>
+            <input type="number" id="calc-base-camo" style="width:100px; padding:5px;" placeholder="静止隐蔽">
+        </div>
+        
+        <!-- 自身状态 -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>自身状态</span>
+            <select id="calc-status" style="width:100px; padding:5px;" onchange="onStatusChange()">
+                <option value="still">静止</option>
+                <option value="moving">移动中</option>
+                <option value="firing">开炮中</option>
+            </select>
+        </div>
+        
+        <!-- 草丛状态 -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>草丛状态</span>
+            <select id="calc-bush" style="width:100px; padding:5px;">
+                <option value="none">无草</option>
+                <option value="sparse">稀疏植被 (+25%)</option>
+                <option value="single">单草丛 (+50%)</option>
+                <option value="double">双草叠加 (上限+80%)</option>
+            </select>
+        </div>
+        
+        <!-- 草后15米开炮 -->
+        <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
+            <input type="checkbox" id="calc-bush-safe" style="width:18px; height:18px; accent-color:#5aa9ff;">
+            <span style="font-size:14px;">草后15米开炮（保留草加成）</span>
+        </div>
+        
+        <!-- 涂装 -->
+        <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
+            <input type="checkbox" id="calc-camo-paint" style="width:18px; height:18px; accent-color:#5aa9ff;">
+            <span style="font-size:14px;">涂装 (+4%)</span>
+        </div>
+        
+        <!-- 消音配件 -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>消音等配件加成 (%)</span>
+            <input type="number" id="calc-exhaust" style="width:100px; padding:5px;" value="0">
+        </div>
+        
+        <!-- 敌方 CVS -->
+        <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
+            <input type="checkbox" id="calc-cvs" style="width:18px; height:18px; accent-color:#5aa9ff;">
+            <span style="font-size:14px;">敌方配备车长镜 CVS (隐蔽 ×0.85)</span>
+        </div>
+        
+        <!-- 敌方高级光学镜 -->
+        <div class="setting-item" style="padding:10px 0; border:none; justify-content:flex-start; gap:10px;">
+            <input type="checkbox" id="calc-high-optics" style="width:18px; height:18px; accent-color:#5aa9ff;">
+            <span style="font-size:14px;">敌方配备高级光学镜 (草后 -15%)</span>
+        </div>
+        
+        <!-- 综合隐蔽值（可手动覆盖） -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>综合隐蔽值 (%)</span>
+            <input type="number" id="calc-final-camo" style="width:100px; padding:5px;" placeholder="自动计算" oninput="onFinalCamoManual()">
+        </div>
+        
+        <!-- 敌方视野 -->
+        <div class="setting-item" style="padding:10px 0; border:none;">
+            <span>敌方视野 (米)</span>
+            <input type="number" id="calc-view-range" style="width:100px; padding:5px;" placeholder="视野">
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="calculateSpotting()" style="flex:1; padding:10px; background:#5aa9ff; color:#fff; border:none; border-radius:6px; font-weight:bold;">计算点亮距离</button>
+            <button onclick="clearSpotting()" style="padding:10px; background:#555; color:#fff; border:none; border-radius:6px;">清空</button>
+        </div>
+        
+        <!-- 结果展示 -->
+        <div id="spotting-result" style="margin-top:10px; font-weight:bold; font-size:16px; color:#5aa9ff;"></div>
+    </div>
+</div>
 </div>
 
 <!-- 6. 小游戏页面 -->
@@ -529,7 +612,7 @@ const members = {
         role: "admin",
         nickname: "烛梦Cael"
     },
-        "bvvd": {
+    "bvvd": {
         username: "BVV_D",
         password: "bvvd",
         role: "member",
@@ -1158,6 +1241,128 @@ function clearFirepower() {
     document.getElementById('calc-long').value = '';
     document.getElementById('calc-rpm').value = '';
     document.getElementById('calc-dpm').value = '';
+}
+// ==================== 点亮距离计算器 ====================
+let manualCamoOverride = false; // 是否手动输入了综合隐蔽值
+
+function onStatusChange() {
+    // 状态改变时重置手动覆盖标记，让自动计算重新生效
+    manualCamoOverride = false;
+    document.getElementById('calc-final-camo').value = '';
+    autoCalcFinalCamo();
+}
+
+function onFinalCamoManual() {
+    // 用户手动修改综合隐蔽值时，设置覆盖标记
+    manualCamoOverride = true;
+}
+
+function autoCalcFinalCamo() {
+    if (manualCamoOverride) return; // 手动输入时跳过自动计算
+    
+    let base = parseFloat(document.getElementById('calc-base-camo').value) || 0;
+    if (base === 0) {
+        document.getElementById('calc-final-camo').value = '';
+        return;
+    }
+    
+    let camo = base;
+    let status = document.getElementById('calc-status').value;
+    
+    // 状态惩罚（通用近似值）
+    if (status === 'moving') camo *= 0.6;
+    if (status === 'firing') camo *= 0.2;
+    
+    // 草丛加成
+    let bushType = document.getElementById('calc-bush').value;
+    let bushBonus = 0;
+    if (bushType === 'sparse') bushBonus = 25;
+    if (bushType === 'single') bushBonus = 50;
+    if (bushType === 'double') bushBonus = 80;
+    
+    // 如果是开炮且未勾选草后15米，开炮会破坏草丛，去掉草丛加成
+    let safeFiring = document.getElementById('calc-bush-safe').checked;
+    if (status === 'firing' && !safeFiring) {
+        bushBonus = 0;
+    }
+    camo += bushBonus;
+    
+    // 上限80%检查（仅对草丛部分？这里对总隐蔽值限制在0-100）
+    if (camo > 100) camo = 100;
+    if (camo < 0) camo = 0;
+    
+    // 涂装 +4%
+    if (document.getElementById('calc-camo-paint').checked) {
+        camo += 4;
+    }
+    
+    // 消音等配件
+    let exhaust = parseFloat(document.getElementById('calc-exhaust').value) || 0;
+    camo += exhaust;
+    
+    // 敌方 CVS 乘算削弱
+    if (document.getElementById('calc-cvs').checked) {
+        camo *= 0.85;
+    }
+    
+    // 敌方高级光学镜：草后隐蔽 -15%（只在有草丛时生效）
+    if (document.getElementById('calc-high-optics').checked && bushBonus > 0) {
+        camo -= 15;
+    }
+    
+    // 最终限制
+    camo = Math.min(100, Math.max(0, camo));
+    document.getElementById('calc-final-camo').value = camo.toFixed(1);
+}
+
+// 监听所有开关变化，自动更新综合隐蔽值
+document.addEventListener('DOMContentLoaded', function() {
+    const ids = ['calc-base-camo','calc-status','calc-bush','calc-bush-safe','calc-camo-paint','calc-exhaust','calc-cvs','calc-high-optics'];
+    ids.forEach(id => {
+        let el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', autoCalcFinalCamo);
+            el.addEventListener('change', autoCalcFinalCamo);
+        }
+    });
+});
+
+function calculateSpotting() {
+    let finalCamo = parseFloat(document.getElementById('calc-final-camo').value);
+    let viewRange = parseFloat(document.getElementById('calc-view-range').value);
+    
+    if (isNaN(finalCamo) || isNaN(viewRange)) {
+        alert('请填写综合隐蔽值和敌方视野！');
+        return;
+    }
+    
+    if (viewRange <= 50) {
+        document.getElementById('spotting-result').innerHTML = `敌方视野必须大于 50 米`;
+        return;
+    }
+    
+    let C = finalCamo / 100;
+    let L = viewRange - (viewRange - 50) * C;
+    
+    // 限制在 50 - 445
+    L = Math.min(445, Math.max(50, L));
+    
+    document.getElementById('spotting-result').innerHTML = `🔭 点亮距离：${L.toFixed(1)} 米`;
+}
+
+function clearSpotting() {
+    document.getElementById('calc-base-camo').value = '';
+    document.getElementById('calc-status').value = 'still';
+    document.getElementById('calc-bush').value = 'none';
+    document.getElementById('calc-bush-safe').checked = false;
+    document.getElementById('calc-camo-paint').checked = false;
+    document.getElementById('calc-exhaust').value = '0';
+    document.getElementById('calc-cvs').checked = false;
+    document.getElementById('calc-high-optics').checked = false;
+    document.getElementById('calc-final-camo').value = '';
+    document.getElementById('calc-view-range').value = '';
+    document.getElementById('spotting-result').innerHTML = '';
+    manualCamoOverride = false;
 }
 </script>
 </body>
