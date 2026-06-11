@@ -778,6 +778,7 @@ function switchTab(pageId, btn, keepFilter = false) {
             filters.style.display = 'none';
         }
     };
+    
     if (pageAnimEnabled) {
         playTransitionAnimation(pageAnimColor, doSwitch);
     } else {
@@ -886,15 +887,24 @@ function showTank(t){
             `;
         }
     };
+    
     if (pageAnimEnabled) {
-        // 动画开始时隐藏详情，防止闪烁
+        // 确保动画前详情页是隐藏的，防止闪烁
         detail.style.display = 'none';
         playTransitionAnimation(pageAnimColor, doShow);
     } else {
         doShow();
     }
 }
-back.onclick=()=>detail.style.display="none";
+back.onclick=()=>{
+    if (pageAnimEnabled) {
+        playTransitionAnimation(pageAnimColor, () => {
+            detail.style.display="none";
+        });
+    } else {
+        detail.style.display="none";
+    }
+};
 search.oninput=draw; nation.onchange=draw; tier.onchange=draw; type.onchange=draw;
 
 renderAllAuthors(); draw();
@@ -980,24 +990,31 @@ function playTransitionAnimation(color, callback) {
     const overlay = document.getElementById('page-transition-overlay');
     const animContainer = document.getElementById('transition-animation');
     overlay.style.display = 'block';
+    overlay.style.background = '#000'; // 纯黑背景，遮挡旧页面
     animContainer.innerHTML = '';
 
-    // 白色斜条下落（10条）
+    // 1. 宽大斜白条逐个下落（15条，依次延迟）
+    const barCount = 15;
     const bars = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < barCount; i++) {
         const bar = document.createElement('div');
         bar.style.position = 'absolute';
-        bar.style.width = '120%';
-        bar.style.height = '3px';
-        bar.style.background = 'rgba(255,255,255,0.7)';
-        bar.style.left = (Math.random() * 100 - 10) + '%';
-        bar.style.transform = 'rotate(-30deg)';
-        bar.style.top = '-10%';
+        bar.style.width = '200%';       // 超宽
+        bar.style.height = '12px';      // 较粗
+        bar.style.background = 'rgba(255,255,255,0.85)';
+        bar.style.left = '-50%';
+        bar.style.transform = 'rotate(-25deg)';  // 倾斜
+        bar.style.top = '-15%';
         bar.style.opacity = '0';
-        bar.style.transition = 'top 0.6s linear, opacity 0.6s linear';
+        bar.style.transition = 'top 0.5s linear, opacity 0.5s linear';
         animContainer.appendChild(bar);
-        bars.push({ el: bar, delay: Math.random() * 200, endTop: 110 });
+        bars.push({
+            el: bar,
+            delay: i * 70,          // 逐个下落间隔 70ms
+            endTop: 110 + Math.random() * 20  // 落到屏幕下方
+        });
     }
+
     bars.forEach(item => {
         setTimeout(() => {
             item.el.style.opacity = '1';
@@ -1005,56 +1022,74 @@ function playTransitionAnimation(color, callback) {
         }, item.delay);
     });
 
-    // 彩色长条动画（0.2秒后出现）
+    // 2. 彩色长条：等白条开始下落一段时间后出现
     setTimeout(() => {
         const stripe = document.createElement('div');
         stripe.style.position = 'absolute';
         stripe.style.top = '50%';
         stripe.style.left = '50%';
-        stripe.style.width = '300px';
-        stripe.style.height = '50px';
+        stripe.style.width = '200%';        // 长度远超屏幕
+        stripe.style.height = '60px';
         stripe.style.backgroundColor = color;
-        stripe.style.borderRadius = '8px';
-        stripe.style.transform = 'translate(-50%, -50%) scale(0.3) rotate(0deg)';
+        stripe.style.borderRadius = '0';    // 无圆角
+        stripe.style.transform = 'translate(-50%, -50%) scaleX(0)';
         stripe.style.opacity = '0';
-        stripe.style.transition = 'transform 0.8s ease, opacity 0.8s ease';
+        stripe.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
         animContainer.appendChild(stripe);
 
+        // 出现动画：水平拉伸
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 stripe.style.opacity = '1';
-                stripe.style.transform = 'translate(-50%, -50%) scale(1.2) rotate(0deg)';
+                stripe.style.transform = 'translate(-50%, -50%) scaleX(1)';
             });
         });
 
-        const finish = () => {
-            stripe.style.transition = 'transform 0.6s ease, opacity 0.6s ease';
-            stripe.style.transform = 'translate(-50%, -50%) scale(30) rotate(90deg)';
-            stripe.style.opacity = '0';
-            stripe.addEventListener('transitionend', function handler() {
-                stripe.removeEventListener('transitionend', handler);
-                overlay.style.display = 'none';
-                if (callback) callback();
-            });
-        };
-
-        let firstDone = false;
+        // 长条完全展开后 → 放大覆盖全屏
         stripe.addEventListener('transitionend', function handler1(e) {
-            if (e.propertyName === 'transform' && !firstDone) {
-                firstDone = true;
+            if (e.propertyName === 'transform' && stripe.style.transform.includes('scaleX(1)')) {
                 stripe.removeEventListener('transitionend', handler1);
-                setTimeout(finish, 100);
+                
+                // 在放大覆盖开始时立即切换页面（callback）
+                if (callback) callback();
+                
+                // 放大覆盖动画
+                stripe.style.transition = 'transform 0.3s ease, opacity 0.5s ease';
+                stripe.style.transform = 'translate(-50%, -50%) scale(2, 2)';
+                
+                // 放大结束后淡出
+                stripe.addEventListener('transitionend', function handler2(e2) {
+                    if (e2.propertyName === 'transform') {
+                        stripe.removeEventListener('transitionend', handler2);
+                        stripe.style.transition = 'opacity 0.3s ease';
+                        stripe.style.opacity = '0';
+                        stripe.addEventListener('transitionend', function handler3() {
+                            stripe.removeEventListener('transitionend', handler3);
+                            overlay.style.display = 'none';
+                            animContainer.innerHTML = '';
+                        });
+                        // 兜底
+                        setTimeout(() => {
+                            if (overlay.style.display !== 'none') {
+                                overlay.style.display = 'none';
+                                animContainer.innerHTML = '';
+                            }
+                        }, 400);
+                    }
+                });
             }
         });
 
-        // 兜底定时器 1.8秒
+        // 总体兜底定时器（防止动画卡死）
         setTimeout(() => {
             if (overlay.style.display !== 'none') {
                 overlay.style.display = 'none';
+                animContainer.innerHTML = '';
                 if (callback) callback();
             }
-        }, 1800);
-    }, 200);
+        }, 2000);
+
+    }, barCount * 70 + 150); // 白条基本落完后再出彩条
 }
 
 // ==================== 运势抽卡系统 ====================
