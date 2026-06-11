@@ -355,6 +355,15 @@ body { padding-bottom: 25px; }
     background: rgba(255,255,255,0.1); border: none; color: #fff;
     font-size: 18px; cursor: pointer; padding: 5px 10px; border-radius: 6px;
 }
+/* 禁止所有图片被拖拽保存 */
+img {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    pointer-events: none; /* 禁止鼠标交互（包括右键） */
+}
 </style>
 </head>
 <body oncontextmenu="return false">
@@ -651,7 +660,10 @@ body { padding-bottom: 25px; }
         <div class="watermark"></div>
         <div class="watermark-text" id="watermark-text"></div>
         <div class="tank-name" id="f-tank-name"></div>
-        <img id="f-tank-img" src="" alt="坦克图片">
+        <div style="position:relative; display:inline-block; width:100%;">
+    <img id="f-tank-img" src="" alt="坦克图片">
+    <div style="position:absolute; inset:0; background:transparent; z-index:5;"></div>
+</div>
         <div class="fortune-text" id="f-fortune-text"></div>
         <div class="fortune-buttons">
             <button class="btn-detail" id="btn-detail" onclick="goToTankDetail()">查看详情</button>
@@ -918,19 +930,67 @@ function getTodayFortune() {
     const fortune=generateFortune(); localStorage.setItem('fortuneData',JSON.stringify({date:today,tankName:fortune.tank.name,gradeName:fortune.grade.name,fortuneText:fortune.fortuneText}));
     return fortune;
 }
-function openFortune(forceAnimation=false) {
-    const overlay=document.getElementById('fortune-overlay'), card=document.getElementById('fortune-card'), anim=document.getElementById('fortune-animation'), btn=document.getElementById('btn-draw-fortune');
-    const fortune=getTodayFortune(); const today=getToday(); const saved=JSON.parse(localStorage.getItem('fortuneData'));
-    if(saved&&saved.date===today&&!forceAnimation){ displayFortuneCard(fortune); overlay.style.display='flex'; anim.innerHTML=''; card.style.display='block'; btn.textContent='查看今日运势'; return; }
-    overlay.style.display='flex'; card.style.display='none'; anim.innerHTML=''; btn.textContent='抽取中...';
-    for(let i=0;i<20;i++){ const bar=document.createElement('div'); bar.className='white-bar'; bar.style.left=(Math.random()*100-10)+'%'; bar.style.animationDelay=(Math.random()*0.5)+'s'; anim.appendChild(bar); }
-    const stripe=document.createElement('div'); stripe.className='color-stripe'; stripe.style.backgroundColor=fortune.grade.color; anim.appendChild(stripe);
-    stripe.addEventListener('animationend',()=>{ anim.innerHTML=''; displayFortuneCard(fortune); card.style.display='block'; btn.textContent='查看今日运势'; });
+function openFortune(forceAnimation = false) {
+    const overlay = document.getElementById('fortune-overlay');
+    const card = document.getElementById('fortune-card');
+    const anim = document.getElementById('fortune-animation');
+    const btn = document.getElementById('btn-draw-fortune');
+
+    const fortune = getTodayFortune();
+    const today = getToday();
+    const saved = JSON.parse(localStorage.getItem('fortuneData'));
+
+    // 今天已抽过且不强制动画 → 直接显示卡片
+    if (saved && saved.date === today && !forceAnimation) {
+        displayFortuneCard(fortune);
+        overlay.style.display = 'flex';
+        anim.innerHTML = '';
+        card.style.display = 'block';
+        btn.textContent = '查看今日运势';
+        return;
+    }
+
+    // === 播放动画 ===
+    overlay.style.display = 'flex';
+    card.style.display = 'none';
+    anim.innerHTML = '';
+    btn.textContent = '抽取中...';
+
+    // 1. 白条下落（20条）
+    for (let i = 0; i < 20; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'white-bar';
+        bar.style.left = (Math.random() * 100 - 10) + '%';
+        bar.style.animationDelay = (Math.random() * 0.5) + 's';
+        anim.appendChild(bar);
+    }
+
+    // 2. 彩色长条（延迟0.3秒后出现，和白条有先后层次）
+    setTimeout(() => {
+        const stripe = document.createElement('div');
+        stripe.className = 'color-stripe';
+        stripe.style.backgroundColor = fortune.grade.color;
+        anim.appendChild(stripe);
+
+        // 双重保险：animationend 事件 + 1.8秒兜底定时器
+        let cardShown = false;
+        const showCard = () => {
+            if (cardShown) return;
+            cardShown = true;
+            anim.innerHTML = '';
+            displayFortuneCard(fortune);
+            card.style.display = 'block';
+            btn.textContent = '查看今日运势';
+        };
+        stripe.addEventListener('animationend', showCard);
+        setTimeout(showCard, 1800); // 兜底：1.8秒后强制显示
+    }, 300);
 }
 function displayFortuneCard(fortune) {
     document.getElementById('f-tank-name').textContent=fortune.tank.name;
     document.getElementById('f-tank-img').src=fortune.tank.imgs[0];
     document.getElementById('f-tank-img').onerror=function(){this.src='https://via.placeholder.com/300x160?text=No+Image';};
+    document.getElementById('f-tank-img').setAttribute('draggable', 'false');
     document.getElementById('f-fortune-text').innerText=fortune.fortuneText;
     const card=document.getElementById('fortune-card'); card.style.setProperty('--grade-color',fortune.grade.color);
     card.querySelector('.corner-grade').style.background=`linear-gradient(135deg, ${fortune.grade.color} 0%, transparent 70%)`;
@@ -940,6 +1000,20 @@ function closeFortune(){ document.getElementById('fortune-overlay').style.displa
 function goToTankDetail(){ if(currentFortuneTank){ closeFortune(); const tankTabBtn=document.querySelector(".tabs .tab-btn"); switchTab('tank-page',tankTabBtn); setTimeout(()=>showTank(currentFortuneTank),100); } }
 function shareFortune(){ const card=document.getElementById('fortune-card'); html2canvas(card,{backgroundColor:'#2a2a2a',scale:2}).then(canvas=>{ canvas.toBlob(blob=>{ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`坦克运势_${getToday()}.png`; a.click(); URL.revokeObjectURL(url); }); }); }
 (function(){ const today=getToday(); const saved=JSON.parse(localStorage.getItem('fortuneData')); const btn=document.getElementById('btn-draw-fortune'); if(saved&&saved.date===today&&btn) btn.textContent='查看今日运势'; })();
+// 禁止长按弹出菜单（移动端保存图片）
+document.addEventListener('touchstart', function(e) {
+    if (e.target.tagName === 'IMG') {
+        e.preventDefault();
+    }
+}, { passive: false });
+
+// 禁止拖拽图片
+document.addEventListener('dragstart', function(e) {
+    if (e.target.tagName === 'IMG') {
+        e.preventDefault();
+        return false;
+    }
+});
 </script>
 </body>
 </html>
