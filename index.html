@@ -991,10 +991,11 @@ function playTransitionAnimation(color, callback) {
     const animContainer = document.getElementById('transition-animation');
     const isLight = document.documentElement.classList.contains('light-mode');
 
-    overlay.style.transition = 'opacity 0.4s ease';
-    overlay.style.opacity = '1';
-    overlay.style.background = 'transparent';
+    // 重置样式
     overlay.style.display = 'block';
+    overlay.style.background = 'transparent';
+    overlay.style.opacity = '1';
+    overlay.style.transition = 'none';
     animContainer.innerHTML = '';
 
     // 1. 白条均匀覆盖屏幕（30条）
@@ -1010,7 +1011,7 @@ function playTransitionAnimation(color, callback) {
         bar.style.transform = 'rotate(-25deg)';
         bar.style.top = '-20%';
         bar.style.opacity = '0';
-        const targetTop = (i / (barCount - 1)) * 100; // 0% ~ 100% 均匀分布
+        const targetTop = (i / (barCount - 1)) * 100;
         bar.style.transition = 'top 0.7s ease-out, opacity 0.4s linear';
         animContainer.appendChild(bar);
         setTimeout(() => {
@@ -1019,19 +1020,15 @@ function playTransitionAnimation(color, callback) {
         }, i * 60);
     }
 
-    // 背景色缓慢变化（白条接近铺满时开始）
-    const bgColor = isLight ? '#f5f5f5' : '#111';
-    setTimeout(() => {
-        overlay.style.background = bgColor;
-    }, barCount * 60 * 0.7);
+    const lastBarDelay = (barCount - 1) * 60;
+    const barAnimDuration = 700;
+    const totalBarTime = lastBarDelay + barAnimDuration + 100;
 
-    // 2. 计算白条全部动画完成的时间（最后一条白条延迟 + 动画时长 + 缓冲）
-    const lastBarDelay = (barCount - 1) * 60; // 1740ms
-    const barAnimDuration = 700; // 0.7s
-    const totalBarTime = lastBarDelay + barAnimDuration + 200; // 加 200ms 确保所有白条都到位
-
+    // 2. 白条铺满后，背景色变实，同时彩条出现
     setTimeout(() => {
-        // 3. 彩色长条从右侧滑入
+        overlay.style.background = isLight ? '#f5f5f5' : '#111';
+
+        // 3. 彩条从右侧滑入
         const stripe = document.createElement('div');
         stripe.style.position = 'absolute';
         stripe.style.top = '50%';
@@ -1053,14 +1050,12 @@ function playTransitionAnimation(color, callback) {
             });
         });
 
-        // 长条到位后停留 0.4s，再放大全屏
         stripe.addEventListener('transitionend', function handler1(e) {
             if (e.propertyName === 'left' && stripe.style.left === '50%') {
                 stripe.removeEventListener('transitionend', handler1);
 
-                // 停留一会儿
+                // 停留 0.4s 后放大
                 setTimeout(() => {
-                    // 放大至全屏（0.5s）
                     stripe.style.transition = 'all 0.5s ease';
                     stripe.style.top = '0';
                     stripe.style.left = '0';
@@ -1069,42 +1064,51 @@ function playTransitionAnimation(color, callback) {
                     stripe.style.transform = 'none';
                     stripe.style.borderRadius = '0';
 
-                    // 全屏覆盖后执行回调（切换页面）
                     stripe.addEventListener('transitionend', function handler2(e2) {
                         if (e2.propertyName === 'width') {
                             stripe.removeEventListener('transitionend', handler2);
+
+                            // ★ 切换页面
                             if (callback) callback();
 
-                            // 整个遮罩层（白条+彩条）一起淡出
-                            overlay.style.transition = 'opacity 0.35s ease';
+                            // ★ 淡出：整个遮罩层（白条+彩条）一起消失
+                            overlay.style.transition = 'opacity 0.4s ease';
                             overlay.style.opacity = '0';
+
                             overlay.addEventListener('transitionend', function handler3() {
                                 overlay.removeEventListener('transitionend', handler3);
                                 overlay.style.display = 'none';
                                 animContainer.innerHTML = '';
+                                // 重置透明度，方便下次使用
+                                overlay.style.opacity = '1';
+                                overlay.style.transition = 'none';
                             });
+
                             // 兜底
                             setTimeout(() => {
                                 if (overlay.style.display !== 'none') {
                                     overlay.style.display = 'none';
                                     animContainer.innerHTML = '';
+                                    overlay.style.opacity = '1';
+                                    overlay.style.transition = 'none';
                                 }
-                            }, 400);
+                            }, 500);
                         }
                     });
-                }, 400); // 停留 0.4s
+                }, 400);
             }
         });
 
-        // 总兜底（最长等待时间 = 白条完成 + 滑入 + 停留 + 放大 + 淡出）
-        const maxTotal = totalBarTime + 450 + 400 + 500 + 400 + 200;
+        // 最终安全兜底
         setTimeout(() => {
             if (overlay.style.display !== 'none') {
                 overlay.style.display = 'none';
                 animContainer.innerHTML = '';
+                overlay.style.opacity = '1';
+                overlay.style.transition = 'none';
                 if (callback) callback();
             }
-        }, maxTotal);
+        }, totalBarTime + 2500);
 
     }, totalBarTime);
 }
