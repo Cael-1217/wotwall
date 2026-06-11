@@ -989,75 +989,78 @@ function clearSpotting() { document.getElementById('calc-base-camo').value=''; d
 function playTransitionAnimation(color, callback) {
     const overlay = document.getElementById('page-transition-overlay');
     const animContainer = document.getElementById('transition-animation');
+    const isLight = document.documentElement.classList.contains('light-mode');
+    
+    // 确保 overlay 有过渡属性（通过内联样式）
+    overlay.style.transition = 'background 0.3s ease';
+    overlay.style.background = 'transparent';   // 初始透明，不遮挡旧页面
     overlay.style.display = 'block';
-    overlay.style.background = '#000'; // 纯黑背景，遮挡旧页面
     animContainer.innerHTML = '';
 
-    // 1. 宽大斜白条逐个下落（15条，依次延迟）
-    const barCount = 15;
-    const bars = [];
+    // 1. 宽大斜白条下落（25条，快速填满视觉）
+    const barCount = 25;
+    const barColor = isLight ? 'rgba(80,80,80,0.9)' : 'rgba(255,255,255,0.9)';
     for (let i = 0; i < barCount; i++) {
         const bar = document.createElement('div');
         bar.style.position = 'absolute';
-        bar.style.width = '200%';       // 超宽
-        bar.style.height = '12px';      // 较粗
-        bar.style.background = 'rgba(255,255,255,0.85)';
+        bar.style.width = '200%';
+        bar.style.height = '20px';
+        bar.style.background = barColor;
         bar.style.left = '-50%';
-        bar.style.transform = 'rotate(-25deg)';  // 倾斜
-        bar.style.top = '-15%';
+        bar.style.transform = 'rotate(-25deg)';
+        bar.style.top = '-20%';
         bar.style.opacity = '0';
-        bar.style.transition = 'top 0.5s linear, opacity 0.5s linear';
+        bar.style.transition = 'top 0.6s linear, opacity 0.5s linear';
         animContainer.appendChild(bar);
-        bars.push({
-            el: bar,
-            delay: i * 70,          // 逐个下落间隔 70ms
-            endTop: 110 + Math.random() * 20  // 落到屏幕下方
-        });
+        setTimeout(() => {
+            bar.style.opacity = '1';
+            bar.style.top = '120%';
+        }, i * 50);
     }
 
-    bars.forEach(item => {
-        setTimeout(() => {
-            item.el.style.opacity = '1';
-            item.el.style.top = item.endTop + '%';
-        }, item.delay);
-    });
+    // 2. 背景色平滑出现（在白条下落一半时开始，比彩条稍早）
+    const bgColor = isLight ? '#f5f5f5' : '#111';
+    setTimeout(() => {
+        overlay.style.background = bgColor;
+    }, barCount * 50 * 0.6); // 约 750ms，白条还未完全落完
 
-    // 2. 彩色长条：等白条开始下落一段时间后出现
+    // 3. 彩色长条：从右侧滑入
+    const stripeDelay = barCount * 50 + 200; // 约 1.45s
     setTimeout(() => {
         const stripe = document.createElement('div');
         stripe.style.position = 'absolute';
         stripe.style.top = '50%';
-        stripe.style.left = '50%';
-        stripe.style.width = '200%';        // 长度远超屏幕
+        stripe.style.left = '120%';
+        stripe.style.width = '200%';
         stripe.style.height = '60px';
         stripe.style.backgroundColor = color;
-        stripe.style.borderRadius = '0';    // 无圆角
-        stripe.style.transform = 'translate(-50%, -50%) scaleX(0)';
+        stripe.style.borderRadius = '0';
+        stripe.style.transform = 'translateY(-50%) scaleX(0)';
         stripe.style.opacity = '0';
-        stripe.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
+        stripe.style.transition = 'left 0.4s ease, transform 0.4s ease, opacity 0.3s ease';
         animContainer.appendChild(stripe);
 
-        // 出现动画：水平拉伸
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 stripe.style.opacity = '1';
+                stripe.style.left = '50%';
                 stripe.style.transform = 'translate(-50%, -50%) scaleX(1)';
             });
         });
 
-        // 长条完全展开后 → 放大覆盖全屏
+        // 长条到位 → 放大覆盖全屏，同时执行页面切换
         stripe.addEventListener('transitionend', function handler1(e) {
-            if (e.propertyName === 'transform' && stripe.style.transform.includes('scaleX(1)')) {
+            if (e.propertyName === 'left' && stripe.style.left === '50%') {
                 stripe.removeEventListener('transitionend', handler1);
                 
-                // 在放大覆盖开始时立即切换页面（callback）
+                // 瞬间放大覆盖全屏
+                stripe.style.transition = 'transform 0.2s ease, opacity 0.4s ease';
+                stripe.style.transform = 'translate(-50%, -50%) scale(3, 3)';
+                
+                // ★ 页面切换在覆盖瞬间执行
                 if (callback) callback();
                 
-                // 放大覆盖动画
-                stripe.style.transition = 'transform 0.3s ease, opacity 0.5s ease';
-                stripe.style.transform = 'translate(-50%, -50%) scale(2, 2)';
-                
-                // 放大结束后淡出
+                // 放大完成后淡出
                 stripe.addEventListener('transitionend', function handler2(e2) {
                     if (e2.propertyName === 'transform') {
                         stripe.removeEventListener('transitionend', handler2);
@@ -1080,16 +1083,16 @@ function playTransitionAnimation(color, callback) {
             }
         });
 
-        // 总体兜底定时器（防止动画卡死）
+        // 总兜底
         setTimeout(() => {
             if (overlay.style.display !== 'none') {
                 overlay.style.display = 'none';
                 animContainer.innerHTML = '';
                 if (callback) callback();
             }
-        }, 2000);
+        }, 2500);
 
-    }, barCount * 70 + 150); // 白条基本落完后再出彩条
+    }, stripeDelay);
 }
 
 // ==================== 运势抽卡系统 ====================
