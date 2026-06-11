@@ -991,12 +991,13 @@ function playTransitionAnimation(color, callback) {
     const animContainer = document.getElementById('transition-animation');
     const isLight = document.documentElement.classList.contains('light-mode');
 
-    overlay.style.transition = 'background 0.3s ease';
+    overlay.style.transition = 'opacity 0.4s ease';
+    overlay.style.opacity = '1';
     overlay.style.background = 'transparent';
     overlay.style.display = 'block';
     animContainer.innerHTML = '';
 
-    // 1. 白条均匀覆盖整个屏幕（30条）
+    // 1. 白条均匀覆盖屏幕（30条）
     const barCount = 30;
     const barColor = isLight ? 'rgba(80,80,80,0.85)' : 'rgba(255,255,255,0.85)';
     for (let i = 0; i < barCount; i++) {
@@ -1009,8 +1010,7 @@ function playTransitionAnimation(color, callback) {
         bar.style.transform = 'rotate(-25deg)';
         bar.style.top = '-20%';
         bar.style.opacity = '0';
-        // 每条白条最终落在不同的垂直位置，均匀分布 0% ~ 100%
-        const targetTop = (i / (barCount - 1)) * 100; // 0% 到 100% 均匀分布
+        const targetTop = (i / (barCount - 1)) * 100; // 0% ~ 100% 均匀分布
         bar.style.transition = 'top 0.7s ease-out, opacity 0.4s linear';
         animContainer.appendChild(bar);
         setTimeout(() => {
@@ -1019,15 +1019,19 @@ function playTransitionAnimation(color, callback) {
         }, i * 60);
     }
 
-    // 2. 背景色渐变（白条几乎铺满后）
+    // 背景色缓慢变化（白条接近铺满时开始）
     const bgColor = isLight ? '#f5f5f5' : '#111';
     setTimeout(() => {
         overlay.style.background = bgColor;
-    }, barCount * 60 * 0.8);
+    }, barCount * 60 * 0.7);
 
-    // 3. 彩色长条从右侧滑入，然后放大到全屏
-    const stripeDelay = barCount * 60 + 100;
+    // 2. 计算白条全部动画完成的时间（最后一条白条延迟 + 动画时长 + 缓冲）
+    const lastBarDelay = (barCount - 1) * 60; // 1740ms
+    const barAnimDuration = 700; // 0.7s
+    const totalBarTime = lastBarDelay + barAnimDuration + 200; // 加 200ms 确保所有白条都到位
+
     setTimeout(() => {
+        // 3. 彩色长条从右侧滑入
         const stripe = document.createElement('div');
         stripe.style.position = 'absolute';
         stripe.style.top = '50%';
@@ -1038,7 +1042,7 @@ function playTransitionAnimation(color, callback) {
         stripe.style.borderRadius = '0';
         stripe.style.transform = 'translateY(-50%) scaleX(0)';
         stripe.style.opacity = '0';
-        stripe.style.transition = 'left 0.4s ease, transform 0.4s ease, opacity 0.3s ease';
+        stripe.style.transition = 'left 0.45s ease, transform 0.45s ease, opacity 0.3s ease';
         animContainer.appendChild(stripe);
 
         requestAnimationFrame(() => {
@@ -1049,56 +1053,60 @@ function playTransitionAnimation(color, callback) {
             });
         });
 
-        // 长条到位 → 放大至全屏
+        // 长条到位后停留 0.4s，再放大全屏
         stripe.addEventListener('transitionend', function handler1(e) {
             if (e.propertyName === 'left' && stripe.style.left === '50%') {
                 stripe.removeEventListener('transitionend', handler1);
 
-                // 直接设置为全屏尺寸，手机/电脑均覆盖
-                stripe.style.transition = 'all 0.3s ease';
-                stripe.style.top = '0';
-                stripe.style.left = '0';
-                stripe.style.width = '100vw';
-                stripe.style.height = '100vh';
-                stripe.style.transform = 'none';
-                stripe.style.borderRadius = '0';
+                // 停留一会儿
+                setTimeout(() => {
+                    // 放大至全屏（0.5s）
+                    stripe.style.transition = 'all 0.5s ease';
+                    stripe.style.top = '0';
+                    stripe.style.left = '0';
+                    stripe.style.width = '100vw';
+                    stripe.style.height = '100vh';
+                    stripe.style.transform = 'none';
+                    stripe.style.borderRadius = '0';
 
-                // ★ 页面切换在开始放大时执行
-                if (callback) callback();
+                    // 全屏覆盖后执行回调（切换页面）
+                    stripe.addEventListener('transitionend', function handler2(e2) {
+                        if (e2.propertyName === 'width') {
+                            stripe.removeEventListener('transitionend', handler2);
+                            if (callback) callback();
 
-                // 全屏覆盖后淡出
-                stripe.addEventListener('transitionend', function handler2(e2) {
-                    if (e2.propertyName === 'width') {
-                        stripe.removeEventListener('transitionend', handler2);
-                        stripe.style.transition = 'opacity 0.3s ease';
-                        stripe.style.opacity = '0';
-                        stripe.addEventListener('transitionend', function handler3() {
-                            stripe.removeEventListener('transitionend', handler3);
-                            overlay.style.display = 'none';
-                            animContainer.innerHTML = '';
-                        });
-                        // 兜底
-                        setTimeout(() => {
-                            if (overlay.style.display !== 'none') {
+                            // 整个遮罩层（白条+彩条）一起淡出
+                            overlay.style.transition = 'opacity 0.35s ease';
+                            overlay.style.opacity = '0';
+                            overlay.addEventListener('transitionend', function handler3() {
+                                overlay.removeEventListener('transitionend', handler3);
                                 overlay.style.display = 'none';
                                 animContainer.innerHTML = '';
-                            }
-                        }, 400);
-                    }
-                });
+                            });
+                            // 兜底
+                            setTimeout(() => {
+                                if (overlay.style.display !== 'none') {
+                                    overlay.style.display = 'none';
+                                    animContainer.innerHTML = '';
+                                }
+                            }, 400);
+                        }
+                    });
+                }, 400); // 停留 0.4s
             }
         });
 
-        // 总兜底
+        // 总兜底（最长等待时间 = 白条完成 + 滑入 + 停留 + 放大 + 淡出）
+        const maxTotal = totalBarTime + 450 + 400 + 500 + 400 + 200;
         setTimeout(() => {
             if (overlay.style.display !== 'none') {
                 overlay.style.display = 'none';
                 animContainer.innerHTML = '';
                 if (callback) callback();
             }
-        }, 2500);
+        }, maxTotal);
 
-    }, stripeDelay);
+    }, totalBarTime);
 }
 
 // ==================== 运势抽卡系统 ====================
