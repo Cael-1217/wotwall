@@ -956,34 +956,93 @@ function openFortune(forceAnimation = false) {
     anim.innerHTML = '';
     btn.textContent = '抽取中...';
 
-    // 1. 白条下落（20条）
+    const animContainer = document.getElementById('fortune-animation');
+    animContainer.style.position = 'relative';
+
+    // 1. 白条下落（20条，随机延迟）
+    const bars = [];
     for (let i = 0; i < 20; i++) {
         const bar = document.createElement('div');
-        bar.className = 'white-bar';
+        bar.style.position = 'absolute';
+        bar.style.width = '120%';
+        bar.style.height = '4px';
+        bar.style.background = 'rgba(255,255,255,0.8)';
         bar.style.left = (Math.random() * 100 - 10) + '%';
-        bar.style.animationDelay = (Math.random() * 0.5) + 's';
-        anim.appendChild(bar);
+        bar.style.transform = 'rotate(-30deg)';
+        bar.style.top = '-10%';
+        bar.style.opacity = '0';
+        bar.style.transition = 'top 0.6s linear, opacity 0.6s linear';
+        animContainer.appendChild(bar);
+        bars.push({
+            el: bar,
+            delay: Math.random() * 300,
+            startTop: -10,
+            endTop: 110
+        });
     }
+    bars.forEach(item => {
+        setTimeout(() => {
+            item.el.style.opacity = '1';
+            item.el.style.top = item.endTop + '%';
+        }, item.delay);
+    });
 
-    // 2. 彩色长条（延迟0.3秒后出现，和白条有先后层次）
+    // 2. 彩色长条动画（0.3秒后出现）
     setTimeout(() => {
         const stripe = document.createElement('div');
-        stripe.className = 'color-stripe';
+        stripe.style.position = 'absolute';
+        stripe.style.top = '50%';
+        stripe.style.left = '50%';
+        stripe.style.width = '300px';
+        stripe.style.height = '60px';
         stripe.style.backgroundColor = fortune.grade.color;
-        anim.appendChild(stripe);
+        stripe.style.borderRadius = '8px';
+        stripe.style.transform = 'translate(-50%, -50%) scale(0.5) rotate(0deg)';
+        stripe.style.opacity = '0';
+        stripe.style.transition = 'transform 1.5s ease, opacity 1.5s ease';
+        animContainer.appendChild(stripe);
 
-        // 双重保险：animationend 事件 + 1.8秒兜底定时器
-        let cardShown = false;
-        const showCard = () => {
-            if (cardShown) return;
-            cardShown = true;
-            anim.innerHTML = '';
-            displayFortuneCard(fortune);
-            card.style.display = 'block';
-            btn.textContent = '查看今日运势';
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                stripe.style.opacity = '1';
+                stripe.style.transform = 'translate(-50%, -50%) scale(1) rotate(0deg)';
+            });
+        });
+
+        const finishAnimation = () => {
+            // 第二阶段：旋转放大消失
+            stripe.style.transition = 'transform 1s ease, opacity 1s ease';
+            stripe.style.transform = 'translate(-50%, -50%) scale(20) rotate(90deg)';
+            stripe.style.opacity = '0';
+            stripe.addEventListener('transitionend', function handler() {
+                stripe.removeEventListener('transitionend', handler);
+                animContainer.innerHTML = '';
+                displayFortuneCard(fortune);
+                card.style.display = 'block';
+                btn.textContent = '查看今日运势';
+            });
         };
-        stripe.addEventListener('animationend', showCard);
-        setTimeout(showCard, 1800); // 兜底：1.8秒后强制显示
+
+        // 监听第一阶段缩放结束
+        let firstStageDone = false;
+        stripe.addEventListener('transitionend', function handler1(e) {
+            if (e.propertyName === 'transform' && !firstStageDone) {
+                firstStageDone = true;
+                stripe.removeEventListener('transitionend', handler1);
+                setTimeout(finishAnimation, 200);
+            }
+        });
+
+        // 兜底定时器：总动画最长 3 秒
+        setTimeout(() => {
+            if (card.style.display === 'none') {
+                animContainer.innerHTML = '';
+                displayFortuneCard(fortune);
+                card.style.display = 'block';
+                btn.textContent = '查看今日运势';
+            }
+        }, 3000);
+
     }, 300);
 }
 function displayFortuneCard(fortune) {
