@@ -465,6 +465,21 @@ img {
         <span>当前版本</span>
         <span style="font-weight: normal; opacity: 0.5; font-family: monospace; font-size: 15px;">v0.9.22</span>
     </div>
+    <div class="setting-item">
+    <span>页面切换动画</span>
+    <input type="checkbox" id="anim-toggle" onchange="togglePageAnim(this.checked)">
+</div>
+<div class="setting-item">
+    <span>动画颜色</span>
+    <select id="anim-color" onchange="changeAnimColor(this.value)">
+        <option value="#FF8C00">橙黄金</option>
+        <option value="#8A2BE2">紫砂</option>
+        <option value="#00CED1">青蓝</option>
+        <option value="#006400">墨绿</option>
+        <option value="#B0C4DE">浅白</option>
+        <option value="#5aa9ff">默认蓝</option>
+    </select>
+</div>
     <div style="text-align:center; margin-top:30px; padding-bottom:10px;">
         <img src="qrcode.PNG" onerror="this.src='https://via.placeholder.com/150?text=QR+Code'" style="width:150px; height:150px; border-radius:10px; border:2px solid var(--border-color);">
         <div style="font-size:13px; color:var(--text-color); opacity:0.6; margin-top:8px;">扫描二维码获取更多资讯</div>
@@ -617,7 +632,10 @@ img {
         </div>
     </div>
 </div>
-
+<!-- 页面过渡动画遮罩 -->
+<div id="page-transition-overlay" style="display:none; position:fixed; inset:0; background:#111; z-index:10001; overflow:hidden;">
+    <div id="transition-animation" style="position:absolute; inset:0; pointer-events:none;"></div>
+</div>
 <!-- 6. 小游戏页面 -->
 <div id="game-page" class="page-content">
     <div class="author-card-box" style="text-align:center;">
@@ -747,12 +765,52 @@ const grid = document.getElementById("grid");
 const filters = document.getElementById("header-filters");
 
 function switchTab(pageId, btn, keepFilter = false) {
-    document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(pageId).classList.add('active');
-    btn.classList.add('active');
-    if(pageId === 'tank-page') { filters.style.display = 'grid'; if(!keepFilter) currentAuthorFilter = ""; draw(); }
-    else { filters.style.display = 'none'; }
+    const doSwitch = () => {
+        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        btn.classList.add('active');
+        if(pageId === 'tank-page') {
+            filters.style.display = 'grid';
+            if(!keepFilter) currentAuthorFilter = "";
+            draw();
+        } else {
+            filters.style.display = 'none';
+        }
+    };
+    if (pageAnimEnabled) {
+        playTransitionAnimation(pageAnimColor, doSwitch);
+    } else {
+        doSwitch();
+    }
+}
+
+// 动画设置
+let pageAnimEnabled = true;
+let pageAnimColor = '#5aa9ff';
+
+// 从 localStorage 读取设置
+(function initPageAnimSettings() {
+    const saved = JSON.parse(localStorage.getItem('tankwall_pageAnim'));
+    if (saved) {
+        pageAnimEnabled = saved.enabled !== false;
+        pageAnimColor = saved.color || '#5aa9ff';
+    }
+    // 初始化控件状态
+    const toggle = document.getElementById('anim-toggle');
+    const colorSel = document.getElementById('anim-color');
+    if (toggle) toggle.checked = pageAnimEnabled;
+    if (colorSel) colorSel.value = pageAnimColor;
+})();
+
+function togglePageAnim(enabled) {
+    pageAnimEnabled = enabled;
+    localStorage.setItem('tankwall_pageAnim', JSON.stringify({ enabled: pageAnimEnabled, color: pageAnimColor }));
+}
+
+function changeAnimColor(color) {
+    pageAnimColor = color;
+    localStorage.setItem('tankwall_pageAnim', JSON.stringify({ enabled: pageAnimEnabled, color: pageAnimColor }));
 }
 
 function getIconHtml(type) {
@@ -804,12 +862,36 @@ function toggleTheme(isLight) { if(isLight) document.documentElement.classList.a
 function toggleLayout(mode) { const gridEl = document.getElementById("grid"); if(!gridEl) return; gridEl.className = (mode === 'list') ? "list-mode" : "grid-mode"; draw(); }
 
 function showTank(t){
-    detail.style.display="block"; dtitle.innerText=t.name; desc.innerText=t.text; gallery.innerHTML="";
-    t.imgs.forEach(i=>{ gallery.innerHTML+="<img src='"+i+"' onerror=\"this.src='https://via.placeholder.com/300x200?text=No+Image'\">"; });
-    const authorZone = document.getElementById("detail-author-zone");
-    if(authorZone) {
-        const tankAuthor = authors[t.authorId] || authors["cael"];
-        authorZone.innerHTML = `<div class="setting-item" style="border:none; background: var(--header-bg); margin: 10px; border-radius: 8px;"><div style="display:flex; align-items:center; gap:10px;"><img src="${tankAuthor.avatar}" style="width:40px; height:40px; border-radius:50%;" onerror="this.src='https://via.placeholder.com/40'"><div><div style="font-weight:bold; font-size:16px;">${tankAuthor.name}</div><div style="font-size:12px; opacity:0.6;">${tankAuthor.title}</div></div></div></div>`;
+    const doShow = () => {
+        detail.style.display="block";
+        dtitle.innerText=t.name;
+        desc.innerText=t.text;
+        gallery.innerHTML="";
+        t.imgs.forEach(i=>{
+            gallery.innerHTML+="<img src='"+i+"' onerror=\"this.src='https://via.placeholder.com/300x200?text=No+Image'\">";
+        });
+        const authorZone = document.getElementById("detail-author-zone");
+        if(authorZone) {
+            const tankAuthor = authors[t.authorId] || authors["cael"];
+            authorZone.innerHTML = `
+                <div class="setting-item" style="border:none; background: var(--header-bg); margin: 10px; border-radius: 8px;">
+                     <div style="display:flex; align-items:center; gap:10px;">
+                          <img src="${tankAuthor.avatar}" style="width:40px; height:40px; border-radius:50%;" onerror="this.src='https://via.placeholder.com/40'">
+                          <div>
+                              <div style="font-weight:bold; font-size:16px;">${tankAuthor.name}</div>
+                              <div style="font-size:12px; opacity:0.6;">${tankAuthor.title}</div>
+                          </div>
+                     </div>
+                </div>
+            `;
+        }
+    };
+    if (pageAnimEnabled) {
+        // 动画开始时隐藏详情，防止闪烁
+        detail.style.display = 'none';
+        playTransitionAnimation(pageAnimColor, doShow);
+    } else {
+        doShow();
     }
 }
 back.onclick=()=>detail.style.display="none";
@@ -891,7 +973,89 @@ function onFinalCamoManual() { manualCamoOverride = true; }
 function autoCalcFinalCamo() { if(manualCamoOverride)return; let status=document.getElementById('calc-status').value; let camo; if(status==='still') camo=parseFloat(document.getElementById('calc-base-camo').value); else camo=parseFloat(document.getElementById('calc-move-camo').value); if(isNaN(camo)){document.getElementById('calc-final-camo').value='';return;} let bushType=document.getElementById('calc-bush').value, bushBonus=0; if(bushType==='sparse')bushBonus=25; else if(bushType==='single')bushBonus=50; else if(bushType==='double')bushBonus=80; if(document.getElementById('calc-high-optics').checked&&bushBonus>0) bushBonus=Math.max(0,bushBonus-15); if(document.getElementById('calc-camo-paint').checked)camo+=4; camo+= (parseFloat(document.getElementById('calc-exhaust').value)||0); camo+=bushBonus; camo=Math.min(100,Math.max(0,camo)); if(document.getElementById('calc-cvs').checked)camo*=0.85; document.getElementById('calc-final-camo').value=camo.toFixed(1); }
 document.addEventListener('DOMContentLoaded', function() { const ids=['calc-base-camo','calc-move-camo','calc-status','calc-bush','calc-camo-paint','calc-exhaust','calc-cvs','calc-high-optics']; ids.forEach(id=>{ let el=document.getElementById(id); if(el){ el.addEventListener('input',autoCalcFinalCamo); el.addEventListener('change',autoCalcFinalCamo); } }); });
 function calculateSpotting() { let finalCamo=parseFloat(document.getElementById('calc-final-camo').value), viewRange=parseFloat(document.getElementById('calc-view-range').value); if(isNaN(finalCamo)||isNaN(viewRange)){alert('请填写综合隐蔽值和敌方视野！');return;} if(viewRange<=50){document.getElementById('spotting-result').innerHTML='敌方视野必须大于 50 米';return;} let L=viewRange-(viewRange-50)*(finalCamo/100); L=Math.min(445,Math.max(50,L)); document.getElementById('spotting-result').innerHTML=`🔭 点亮距离：${L.toFixed(1)} 米`; }
+
 function clearSpotting() { document.getElementById('calc-base-camo').value=''; document.getElementById('calc-move-camo').value=''; document.getElementById('calc-status').value='still'; document.getElementById('calc-bush').value='none'; document.getElementById('calc-camo-paint').checked=false; document.getElementById('calc-exhaust').value='0'; document.getElementById('calc-cvs').checked=false; document.getElementById('calc-high-optics').checked=false; document.getElementById('calc-final-camo').value=''; document.getElementById('calc-view-range').value=''; document.getElementById('spotting-result').innerHTML=''; document.getElementById('still-camo-row').style.display='flex'; document.getElementById('moving-camo-row').style.display='none'; manualCamoOverride=false; }
+
+function playTransitionAnimation(color, callback) {
+    const overlay = document.getElementById('page-transition-overlay');
+    const animContainer = document.getElementById('transition-animation');
+    overlay.style.display = 'block';
+    animContainer.innerHTML = '';
+
+    // 白色斜条下落（10条）
+    const bars = [];
+    for (let i = 0; i < 10; i++) {
+        const bar = document.createElement('div');
+        bar.style.position = 'absolute';
+        bar.style.width = '120%';
+        bar.style.height = '3px';
+        bar.style.background = 'rgba(255,255,255,0.7)';
+        bar.style.left = (Math.random() * 100 - 10) + '%';
+        bar.style.transform = 'rotate(-30deg)';
+        bar.style.top = '-10%';
+        bar.style.opacity = '0';
+        bar.style.transition = 'top 0.6s linear, opacity 0.6s linear';
+        animContainer.appendChild(bar);
+        bars.push({ el: bar, delay: Math.random() * 200, endTop: 110 });
+    }
+    bars.forEach(item => {
+        setTimeout(() => {
+            item.el.style.opacity = '1';
+            item.el.style.top = item.endTop + '%';
+        }, item.delay);
+    });
+
+    // 彩色长条动画（0.2秒后出现）
+    setTimeout(() => {
+        const stripe = document.createElement('div');
+        stripe.style.position = 'absolute';
+        stripe.style.top = '50%';
+        stripe.style.left = '50%';
+        stripe.style.width = '300px';
+        stripe.style.height = '50px';
+        stripe.style.backgroundColor = color;
+        stripe.style.borderRadius = '8px';
+        stripe.style.transform = 'translate(-50%, -50%) scale(0.3) rotate(0deg)';
+        stripe.style.opacity = '0';
+        stripe.style.transition = 'transform 0.8s ease, opacity 0.8s ease';
+        animContainer.appendChild(stripe);
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                stripe.style.opacity = '1';
+                stripe.style.transform = 'translate(-50%, -50%) scale(1.2) rotate(0deg)';
+            });
+        });
+
+        const finish = () => {
+            stripe.style.transition = 'transform 0.6s ease, opacity 0.6s ease';
+            stripe.style.transform = 'translate(-50%, -50%) scale(30) rotate(90deg)';
+            stripe.style.opacity = '0';
+            stripe.addEventListener('transitionend', function handler() {
+                stripe.removeEventListener('transitionend', handler);
+                overlay.style.display = 'none';
+                if (callback) callback();
+            });
+        };
+
+        let firstDone = false;
+        stripe.addEventListener('transitionend', function handler1(e) {
+            if (e.propertyName === 'transform' && !firstDone) {
+                firstDone = true;
+                stripe.removeEventListener('transitionend', handler1);
+                setTimeout(finish, 100);
+            }
+        });
+
+        // 兜底定时器 1.8秒
+        setTimeout(() => {
+            if (overlay.style.display !== 'none') {
+                overlay.style.display = 'none';
+                if (callback) callback();
+            }
+        }, 1800);
+    }, 200);
+}
 
 // ==================== 运势抽卡系统 ====================
 const fortuneGrades = [
@@ -907,7 +1071,7 @@ const fortuneTexts = {
         '鸿运当头，炮炮穿敌！\n幸运数字：3\n幸运颜色：赤红\n幸运方向：西南\n宜：卖头输出、抢点\n忌：贪炮换血'
     ],
     '吉': ['运势不错，稳扎稳打。\n幸运数字：11\n幸运颜色：紫色\n幸运方向：东\n宜：支援队友、转场\n忌：孤军深入'],
-    '半吉': ['中规中矩，考验技术。\n幸运数字：5\n幸运颜色：青色\n幸运方向：南\n宜：黑枪、点亮\n忌：冲动开炮'],
+    '半吉': ['中流砥柱，考验技术。\n幸运数字：5\n幸运颜色：青色\n幸运方向：南\n宜：黑枪、点亮\n忌：冲动开炮'],
     '小吉': ['小心行事，保存血量。\n幸运数字：2\n幸运颜色：墨绿\n幸运方向：北\n宜：卡点防守\n忌：主动进攻'],
     '平': ['平淡一日，无惊无喜。\n幸运数字：9\n幸运颜色：浅灰\n幸运方向：西北\n宜：随意游玩\n忌：强求胜率']
 };
