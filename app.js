@@ -22,8 +22,32 @@ playerImg.onload = () => { console.log("主角图片已优先加载完成！"); 
 function login() {
     let u = document.getElementById("login-user").value.trim();
     let p = document.getElementById("login-pass").value.trim();
-    if (members[u] && members[u].password === p) { currentUser = members[u]; localStorage.setItem("loginUser", u); showUser(); }
-    else { alert("账号或密码错误"); }
+    
+    // 1. 先判断是否直接输入了键名（兼容旧用法，不报错）
+    if (members[u] && members[u].password === p) {
+        currentUser = members[u];
+        localStorage.setItem("loginUser", u);
+        showUser();
+        return;
+    }
+
+    // 2. 【核心修复】遍历查找，支持用成员的真实用户名（例如 ALAN, Xian, NEW WAY）登录
+    let foundKey = null;
+    for (let key in members) {
+        if (members[key].username === u && members[key].password === p) {
+            foundKey = key;
+            break;
+        }
+    }
+    
+    // 3. 成功登录并保存状态
+    if (foundKey) {
+        currentUser = members[foundKey];
+        localStorage.setItem("loginUser", foundKey); // 注意：这里必须存键（如 "admin"），因为收藏系统的 localStorage 用的是键
+        showUser();
+    } else {
+        alert("账号或密码错误");
+    }
 }
 function logout() { currentUser = null; localStorage.removeItem("loginUser"); document.getElementById("login-box").style.display="block"; document.getElementById("user-info").style.display="none"; }
 function showUser() { 
