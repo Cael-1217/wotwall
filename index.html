@@ -449,6 +449,7 @@ img {
             <p>账号类型：<span id="user-role">普通成员</span></p>
             <p>收藏数量：<span id="fav-count">0</span></p>
         </div>
+         <div id="favorites-list" style="margin-top:15px;"></div>
         <button onclick="logout()" style="width:100%;padding:12px;margin-top:15px;">退出登录</button>
     </div>
 </div>
@@ -484,7 +485,7 @@ img {
     </div>
     <div class="setting-item">
         <span>当前版本</span>
-        <span style="font-weight: normal; opacity: 0.5; font-family: monospace; font-size: 15px;">v0.9.22</span>
+        <span style="font-weight: normal; opacity: 0.5; font-family: monospace; font-size: 15px;">v1.0.17</span>
     </div>
     <div style="text-align:center; margin-top:30px; padding-bottom:10px;">
         <img src="qrcode.PNG" onerror="this.src='https://via.placeholder.com/150?text=QR+Code'" style="width:150px; height:150px; border-radius:10px; border:2px solid var(--border-color);">
@@ -666,11 +667,12 @@ img {
     <div id="back">← 返回列表</div>
     <div id="gallery"></div>
     <div id="detail-author-zone"></div>
+    <div id="detail-fav-container"></div>
     <h2 id="dtitle"></h2>
     <div id="desc"></div>
 </div>
 
-<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：0.9.22】 </div></div>
+<div id="marquee"><div>【官方QQ群聊：967845736】　　　【UP：烛梦Cael】       【版本号：1.0.17】 </div></div>
 
 <!-- 运势遮罩层 -->
 <div id="fortune-overlay">
@@ -699,12 +701,17 @@ img {
 </div>
 
 <script>
+// ============ 动画叠加防护标志 ============
+let isTransitioning = false;
+
 // ============ 用户系统：预置成员登录 ============
 let currentUser = null;
 const members = {
     "admin": { username: "ALAN", password: "1989518", role: "member", nickname: "alanbecker" },
     "cael": { username: "cael", password: "Aa1217", role: "admin", nickname: "烛梦Cael" },
     "Lusfr": { username: "Lusfr", password: "AIM260", role: "member", nickname: "Lusfr" },
+    "FPE": { username: "NEW WAY", password: "A518518a", role: "member", nickname: "◆NEW WAY◆" },
+    "xian": { username: "Xian", password: "Xian1112", role: "member", nickname: "仙仙大统领" },
     "445": { username: "445", password: "Draw445", role: "member", nickname: "445" },
     "tiger": { username: "tiger", password: "tigerC", role: "member", nickname: "湾仔虎" }
 };
@@ -721,6 +728,105 @@ function login() {
 }
 function logout() { currentUser = null; localStorage.removeItem("loginUser"); document.getElementById("login-box").style.display="block"; document.getElementById("user-info").style.display="none"; }
 function showUser() { document.getElementById("login-box").style.display="none"; document.getElementById("user-info").style.display="block"; document.getElementById("welcome-user").innerHTML="欢迎回来，"+currentUser.nickname; document.getElementById("user-role").innerHTML = currentUser.role==="admin"?"管理员":"成员"; }
+// ========== 收藏系统 ==========
+// 获取当前用户的收藏列表 (数组，存坦克名)
+function getUserFavorites() {
+    if (!currentUser) return [];
+    const key = 'fav_' + currentUser.username;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+}
+
+// 保存收藏列表
+function saveUserFavorites(favs) {
+    if (!currentUser) return;
+    const key = 'fav_' + currentUser.username;
+    localStorage.setItem(key, JSON.stringify(favs));
+}
+
+// 检查是否已收藏
+function isTankFavorited(tankName) {
+    const favs = getUserFavorites();
+    return favs.includes(tankName);
+}
+
+// 切换收藏状态
+function toggleFavorite(tankName) {
+    if (!currentUser) {
+        alert("请先登录");
+        return;
+    }
+    const favs = getUserFavorites();
+    const index = favs.indexOf(tankName);
+    if (index > -1) {
+        favs.splice(index, 1);
+    } else {
+        favs.push(tankName);
+    }
+    saveUserFavorites(favs);
+    // 更新按钮状态
+    const btn = document.getElementById("btn-favorite");
+    if (btn) {
+        const isFav = favs.includes(tankName);
+        btn.style.background = isFav ? '#ff8c00' : '#5aa9ff';
+        btn.textContent = isFav ? '★ 已收藏' : '☆ 收藏';
+    }
+    // 更新收藏数量显示
+    updateFavCount();
+    // 刷新收藏列表（若在“我的”页面）
+    renderFavoritesList();
+}
+
+// 更新收藏数量
+function updateFavCount() {
+    const countSpan = document.getElementById("fav-count");
+    if (countSpan) {
+        countSpan.textContent = getUserFavorites().length;
+    }
+}
+
+// 渲染“我的”页面收藏列表
+function renderFavoritesList() {
+    const listDiv = document.getElementById("favorites-list");
+    if (!listDiv || !currentUser) return;
+    const favs = getUserFavorites();
+    if (favs.length === 0) {
+        listDiv.innerHTML = '<p style="opacity:0.6; text-align:center;">暂无收藏</p>';
+        return;
+    }
+    const favTanks = tanks.filter(t => favs.includes(t.name));
+    listDiv.innerHTML = favTanks.map(t => `
+        <div class="author-card-box" style="margin-bottom:10px; padding:10px; display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="showTank(tanks.find(x=>x.name==='${t.name}'))">
+            <img src="${t.imgs[0]}" style="width:50px; height:50px; object-fit:contain; border-radius:6px;" onerror="this.src='https://via.placeholder.com/50'">
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${t.name}</div>
+                <div style="font-size:12px; opacity:0.7;">${t.nation} ${t.tier} ${t.type}</div>
+            </div>
+            <button onclick="event.stopPropagation(); toggleFavorite('${t.name}')" style="background:none; border:none; color:#ff8c00; font-size:20px; cursor:pointer;">★</button>
+        </div>
+    `).join('');
+}
+
+// 修改 showUser 函数，登录后刷新收藏列表和数量
+function showUser() {
+    document.getElementById("login-box").style.display = "none";
+    document.getElementById("user-info").style.display = "block";
+    document.getElementById("welcome-user").innerHTML = "欢迎回来，" + currentUser.nickname;
+    document.getElementById("user-role").innerHTML = currentUser.role === "admin" ? "管理员" : "成员";
+    updateFavCount();
+    renderFavoritesList();
+}
+
+// 修改 logout 函数，退出时清空列表
+function logout() {
+    currentUser = null;
+    localStorage.removeItem("loginUser");
+    document.getElementById("login-box").style.display = "block";
+    document.getElementById("user-info").style.display = "none";
+    // 清空收藏列表显示
+    const listDiv = document.getElementById("favorites-list");
+    if (listDiv) listDiv.innerHTML = '';
+}
 
 // 预加载主角图片
 const playerImg = new Image(); playerImg.src = "player.PNG";
@@ -740,7 +846,9 @@ const typeIcons = {
 const authors = {
     "cael": { name:"烛梦Cael", avatar:"avatar.JPG", title:"站长", workText:"🖼️ 作品浏览", fansCount:7, joinTime:"2026-6-7 20:45:15", totalWorks:67 },
     "445": { name:"445", avatar:"avatar2.JPG", title:"手绘大师", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:4 },
-    "Lusfr": { name:"Lusfr", avatar:"avatar4.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 12:00:00", totalWorks:0 },
+    "Lusfr": { name:"Lusfr", avatar:"avatar4.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 12:01:17", totalWorks:0 },
+    "xian": { name:"仙仙大统领", avatar:"avatar5.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:13 },
+    "FPE": { name:"◆NEW WAY◆", avatar:"avatar6.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:0 },
     "tiger": { name:"湾仔虎", avatar:"avatar3.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:1 }
 };
 
@@ -768,9 +876,30 @@ const tanks = [
     { name:"AVK27 Utkas1 12cm", nation:"SE", tier:"VII", type:"火炮", authorId:"cael", imgs:["AVK27.JPG"], text:"AVK27 Utkas1 12cm\nV系VII级火炮" },
     { name:"虎王 75WT", nation:"DE", tier:"VIII", type:"重坦", authorId:"445", imgs:["75WT.JPG"], text:"未定义" },
     { name:"V128FH中坦", nation:"DE", tier:"VIII", type:"中坦", authorId:"445", imgs:["V128.JPG"], text:"未定义" },
-     { name:"猎鼠虎", nation:"DE", tier:"IX", type:"坦歼", authorId:"445", imgs:["JMT.JPG"], text:"未定义" },
+     { name:"猎鼠虎", nation:"DE", tier:"IX", type:"反坦", authorId:"445", imgs:["JMT.JPG"], text:"未定义" },
      { name:"ADGZ 75支援型", nation:"DE", tier:"VII", type:"轻坦", authorId:"445", imgs:["ADGZ75.JPG"], text:"未定义" },
+     { name:"IS-3 85m", nation:"RU", tier:"VII", type:"重坦", authorId:"xian", imgs:["385M.JPG"], text:"俯角-15，装填5秒，20度方向机" },
+          { name:"T58E2", nation:"US", tier:"XI", type:"重坦", authorId:"xian", imgs:["T58.JPG"], text:"T58E2(甲弹对抗型)，70倍155炮，2.6秒一发，6发待发，方向机37度/s。\nAPCBC初速1200，在1500米距离穿深420，装药700g，65度斜穿180。\nHEAT静破406，动破380。\nHESH装药16Kg，203穿。\n首上65度125箭簇形，首下55度125。炮盾320/20度弧形，炮塔正面角度加大，炮塔座连接处加上了一块可活动250mm装甲" },
+     { name:"IS-152", nation:"RU", tier:"VIII", type:"反坦", authorId:"xian", imgs:["IS152.JPG"], text:"未定义" },
+     { name:"ISU-100e", nation:"RU", tier:"VII", type:"反坦", authorId:"xian", imgs:["ISU100E.JPG"], text:"未定义" },
+     { name:"Tiger II C", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["E75S.JPG"], text:"未定义" },
+     { name:"Panzer II", nation:"DE", tier:"IX", type:"中坦", authorId:"xian", imgs:["E50S.JPG"], text:"未定义" },
+     { name:"IS-6 AAS-OF", nation:"RU", tier:"VIII", type:"重坦", authorId:"xian", imgs:["IS6AAS.JPG"], text:'IS-6 AAS-OF(甲弹对抗特化改进方案)。
+车体首上69度105mm箭簇型，首下55度125mm，侧面上半50度105mm，下半81度75mm/垂直110mm，后方60度75mm。
+炮塔正面255mm～200mm/35～55度，侧面200mm/38度，后方105mm/25度，炮盾220+100mm(320mm)，车长塔正面150mm/40度。
+主炮为62倍D35T型122炮，半自动装填，5～13倍放大，俯角-5，仰角25，方向机12度/s，30km时速以下时低速垂稳生效。
+全重59.8吨，功重比12.71，极速43，倒车16。' },
      { name:"未定义", nation:"US", tier:"XI", type:"重坦", authorId:"tiger", imgs:["T.PNG"], text:"未完工" },       
+     { name:"60式重坦", nation:"CN", tier:"X", type:"重坦", authorId:"xian", imgs:["CN7.JPG"], text:'Wz111太弱了，给她小小加强一下:
+60式重坦(🕰️风味is7)，权重7.7金币车。
+首上165mm/60度，首下170mm55度，侧面150mm/50度。
+炮塔正面303，等效380～490，侧面165mm42度，炮盾360～200，等效402～460。
+70倍130炮，全口径装药弹100米穿深420，65度斜穿152，177.7g装药，高爆3.2Kg装药，破甲动破460mm，装药3.1Kg，可带32发炮弹。
+15秒装填，12度方向机，3～12倍炮镜，有垂稳、光学测距仪，2只12.7与2只7.62机枪。
+前进37倒车12，功重比12。
+依旧大技霸最新力作，依旧俺寻思这车能造得又大又猛🤓' },
+    { name:"IS-4锥膛炮", nation:"RU", tier:"X", type:"重坦", authorId:"xian", imgs:["IS4WDF.JPG"], text:"大技霸最新力作:1400倍径5.56mm锥膛炮is4" },
+    { name:"爆改版虎王", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["TKWDF.JPG"], text:"爆改哈基虎，首上60度150，炮塔正面35度200，炮塔后方40度110，炮塔侧面105，主炮为L70/128炮" },
     { name:"EBG-60", nation:"FR", tier:"XI", type:"工程车", authorId:"cael", imgs:["EBG-60.JPG"], text:"F系XI级工程车" }
 ];
 
@@ -805,6 +934,13 @@ function changeAnimColor(color) {
 }
 
 function playTransitionAnimation(color, callback) {
+    // 防止动画叠加：如果正在播放动画，直接执行回调并跳过新动画
+    if (isTransitioning) {
+        if (callback) callback();
+        return;
+    }
+    isTransitioning = true;
+
     const overlay = document.getElementById('page-transition-overlay');
     const animContainer = document.getElementById('transition-animation');
     const isLight = document.documentElement.classList.contains('light-mode');
@@ -815,6 +951,17 @@ function playTransitionAnimation(color, callback) {
     overlay.style.opacity = '1';
     overlay.style.transition = 'none';
     animContainer.innerHTML = '';
+
+    // 辅助清理函数：确保动画状态被重置
+    const finishTransition = () => {
+        if (!isTransitioning) return;
+        overlay.style.display = 'none';
+        animContainer.innerHTML = '';
+        overlay.style.opacity = '1';
+        overlay.style.transition = 'none';
+        overlay.style.background = isLight ? '#f5f5f5' : '#111';
+        isTransitioning = false;
+    };
 
     // 1. 白条均匀覆盖屏幕（30条）
     const barCount = 30;
@@ -895,20 +1042,13 @@ function playTransitionAnimation(color, callback) {
 
                             overlay.addEventListener('transitionend', function handler3() {
                                 overlay.removeEventListener('transitionend', handler3);
-                                overlay.style.display = 'none';
-                                animContainer.innerHTML = '';
-                                // 重置透明度，方便下次使用
-                                overlay.style.opacity = '1';
-                                overlay.style.transition = 'none';
+                                finishTransition();
                             });
 
                             // 兜底
                             setTimeout(() => {
                                 if (overlay.style.display !== 'none') {
-                                    overlay.style.display = 'none';
-                                    animContainer.innerHTML = '';
-                                    overlay.style.opacity = '1';
-                                    overlay.style.transition = 'none';
+                                    finishTransition();
                                 }
                             }, 500);
                         }
@@ -920,10 +1060,7 @@ function playTransitionAnimation(color, callback) {
         // 最终安全兜底
         setTimeout(() => {
             if (overlay.style.display !== 'none') {
-                overlay.style.display = 'none';
-                animContainer.innerHTML = '';
-                overlay.style.opacity = '1';
-                overlay.style.transition = 'none';
+                finishTransition();
                 if (callback) callback();
             }
         }, totalBarTime + 2500);
@@ -943,6 +1080,11 @@ function switchTab(pageId, btn, keepFilter = false) {
             draw();
         } else {
             filters.style.display = 'none';
+        }
+        // 切换到“我的”页面时自动刷新收藏信息
+        if (pageId === 'user-page' && currentUser) {
+            updateFavCount();
+            renderFavoritesList();
         }
     };
     
@@ -1025,6 +1167,17 @@ function showTank(t){
                 </div>
             `;
         }
+       // === 新增收藏按钮 ===
+        const favContainer = document.getElementById("detail-fav-container");
+        if (favContainer) {
+            const isFav = isTankFavorited(t.name);
+            favContainer.innerHTML = `
+                <button id="btn-favorite" onclick="toggleFavorite('${t.name}')" 
+                    style="width:100%; padding:10px; background:${isFav?'#ff8c00':'#5aa9ff'}; color:#fff; border:none; border-radius:6px; font-weight:bold;">
+                    ${isFav ? '★ 已收藏' : '☆ 收藏'}
+                </button>
+            `;
+        } 
     };
     
     if (pageAnimEnabled) {
@@ -1184,7 +1337,14 @@ function displayFortuneCard(fortune) {
 }
 function closeFortune(){ document.getElementById('fortune-overlay').style.display='none'; document.getElementById('fortune-card').style.display='none'; }
 function goToTankDetail(){ if(currentFortuneTank){ closeFortune(); const tankTabBtn=document.querySelector(".tabs .tab-btn"); switchTab('tank-page',tankTabBtn); setTimeout(()=>showTank(currentFortuneTank),100); } }
-function shareFortune(){ const card=document.getElementById('fortune-card'); html2canvas(card,{backgroundColor:'#2a2a2a',scale:2}).then(canvas=>{ canvas.toBlob(blob=>{ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`坦克运势_${getToday()}.png`; a.click(); URL.revokeObjectURL(url); }); }); }
+function shareFortune(){
+    if (typeof html2canvas === 'undefined') {
+        alert('分享功能加载失败，请检查网络后重试。');
+        return;
+    }
+    const card=document.getElementById('fortune-card');
+    html2canvas(card,{backgroundColor:'#2a2a2a',scale:2}).then(canvas=>{ canvas.toBlob(blob=>{ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`坦克运势_${getToday()}.png`; a.click(); URL.revokeObjectURL(url); }); });
+}
 (function(){ const today=getToday(); const saved=JSON.parse(localStorage.getItem('fortuneData')); const btn=document.getElementById('btn-draw-fortune'); if(saved&&saved.date===today&&btn) btn.textContent='查看今日运势'; })();
 // 禁止长按弹出菜单（移动端保存图片）
 document.addEventListener('touchstart', function(e) {
