@@ -7,6 +7,7 @@ const members = {
     "FPE": { username: "NEW WAY", password: "A518518a", role: "member", nickname: "◆NEW WAY◆" },
     "xian": { username: "Xian", password: "Xian1112", role: "member", nickname: "仙仙大统领" },
     "445": { username: "445", password: "Draw445", role: "member", nickname: "445" },
+    "lhmx": { username: "LHMX", password: "CitiesXL2012", role: "member", nickname: "凌寒沐雪" },
     "tiger": { username: "tiger", password: "tigerC", role: "member", nickname: "湾仔虎" }
 };
 
@@ -25,6 +26,7 @@ const authors = {
     "cael": { name:"烛梦Cael", avatar:"avatar.JPG", title:"站长", workText:"🖼️ 作品浏览", fansCount:7, joinTime:"2026-6-7 20:45:15", totalWorks:67 },
     "445": { name:"445", avatar:"avatar2.JPG", title:"手绘大师", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:4 },
     "Lusfr": { name:"Lusfr", avatar:"avatar4.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 12:01:17", totalWorks:0 },
+    "lhmx": { name:"凌寒沐雪", avatar:"avatar7.jpg", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-9-6  8:24:30", totalWorks:0 },
     "xian": { name:"仙仙大统领", avatar:"avatar5.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:13 },
     "FPE": { name:"◆NEW WAY◆", avatar:"avatar6.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:0 },
     "tiger": { name:"湾仔虎", avatar:"avatar3.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:1 }
