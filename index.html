@@ -65,21 +65,19 @@ nav.tabs::-webkit-scrollbar { display: none; }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
 
 .filter-bar {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  display: grid; grid-template-columns: 1fr 1fr;
   gap: 6px; padding: 8px 12px 12px;
 }
-.filter-bar input { grid-column: span 2; }
-.filter-bar input,
-.filter-bar select {
+.filter-bar > input { grid-column: span 2; }
+.filter-bar input {
   width: 100%; padding: 8px 10px;
   background: var(--surface); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px;
   font-family: inherit; font-size: 13px; outline: none;
   transition: border-color 0.15s ease;
 }
-.filter-bar input:focus, .filter-bar select:focus { border-color: var(--border-strong); }
+.filter-bar input:focus { border-color: var(--border-strong); }
 .filter-bar input::placeholder { color: var(--text-faint); }
-.filter-bar select:disabled { opacity: 0.4; cursor: not-allowed; }
 
 main {
   padding: 12px; max-width: 900px; margin: 0 auto;
@@ -138,35 +136,28 @@ main {
   font-size: 11px; color: var(--text-dim);
   font-family: ui-monospace, monospace; white-space: nowrap;
 }
-.category-tag {
-  font-size: 10px; padding: 1px 5px; border-radius: 3px;
-  background: var(--accent-soft); color: var(--accent);
-  font-family: ui-monospace, monospace;
-}
 
-/* 游戏国家（WOT/B 与 WT 通用） */
-.FR { --nation-color: #4a6b9e; }   /* 蓝 */
-.DE { --nation-color: #5e5e62; }   /* 中性灰 */
-.US { --nation-color: #6b7a4a; }   /* 军绿 */
-.RU { --nation-color: #7a4a4a; }   /* 暗红 */
-.CN { --nation-color: #a04a4a; }   /* 红 */
-.SE { --nation-color: #4a6b8a; }   /* 冷蓝 */
-.UK { --nation-color: #7a4a5a; }   /* 酒红 */
-.PL { --nation-color: #8a6a4a; }   /* 棕橙 */
-.JK { --nation-color: #6a5a4a; }   /* 棕 */
-.JP { --nation-color: #8a8a8a; }   /* 浅灰 */
-.SP { --nation-color: #a08040; }   /* 金黄 */
-.IT { --nation-color: #6b8a5a; }   /* 橄榄绿 */
-
-/* 现实国家 */
-.SU { --nation-color: #8a3a3a; }   /* 苏联（深红） */
-.AU { --nation-color: #7a8a5a; }   /* 澳（橄榄） */
-.IL { --nation-color: #4a6b9a; }   /* 以色列（蓝） */
-.AM { --nation-color: #8a6a4a; }   /* 美洲（暖棕） */
-.AS { --nation-color: #a08a4a; }   /* 亚洲（金） */
-.EU { --nation-color: #6a5a7a; }   /* 欧洲（紫灰） */
-.AF { --nation-color: #8a6a5a; }   /* 非洲（土红） */
-.OC { --nation-color: #4a7a7a; }   /* 澳洲（青） */
+.FR { --nation-color: #4a6b9e; }
+.DE { --nation-color: #5e5e62; }
+.US { --nation-color: #6b7a4a; }
+.RU { --nation-color: #7a4a4a; }
+.CN { --nation-color: #a04a4a; }
+.SE { --nation-color: #4a6b8a; }
+.UK { --nation-color: #7a4a5a; }
+.PL { --nation-color: #8a6a4a; }
+.JK { --nation-color: #6a5a4a; }
+.JP { --nation-color: #8a8a8a; }
+.SP { --nation-color: #a08040; }
+.IT { --nation-color: #6b8a5a; }
+.SU { --nation-color: #8a3a3a; }
+.AU { --nation-color: #7a8a5a; }
+.IL { --nation-color: #4a6b9a; }
+.AM { --nation-color: #8a6a4a; }
+.AS { --nation-color: #a08a4a; }
+.EU { --nation-color: #6a5a7a; }
+.AF { --nation-color: #8a6a5a; }
+.OC { --nation-color: #4a7a7a; }
+.OT { --nation-color: #6a6a6a; }
 
 #author-card-container { display: flex; flex-direction: column; gap: 10px; }
 .author-card-box {
@@ -213,7 +204,7 @@ main {
 
 .setting-group {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden; margin-bottom: 10px;
+  border-radius: 10px; overflow: visible; margin-bottom: 10px;
 }
 .setting-item {
   display: flex; justify-content: space-between; align-items: center;
@@ -227,11 +218,12 @@ main {
   border: 1px solid var(--border); border-radius: 6px;
   font-family: inherit; font-size: 13px; outline: none;
 }
-.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
-.switch input { opacity: 0; width: 0; height: 0; }
+.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; display: inline-block; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
 .switch .slider {
   position: absolute; inset: 0; background: var(--border-strong);
   border-radius: 22px; cursor: pointer; transition: background 0.2s;
+  display: block;
 }
 .switch .slider::before {
   content: ''; position: absolute; width: 18px; height: 18px;
@@ -252,15 +244,14 @@ main {
   padding: 7px 0;
 }
 .tool-row > span { font-size: 13px; color: var(--text-dim); }
-.tool-row input, .tool-row select {
+.tool-row input[type="number"] {
   width: 110px; padding: 7px 10px;
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px;
   font-family: inherit; font-size: 13px; outline: none;
   transition: border-color 0.15s; text-align: right;
 }
-.tool-row select { text-align: left; }
-.tool-row input:focus, .tool-row select:focus { border-color: var(--accent); }
+.tool-row input[type="number"]:focus { border-color: var(--accent); }
 .tool-row.checkbox-row { justify-content: flex-start; gap: 8px; }
 .tool-row.checkbox-row input[type="checkbox"] {
   width: 16px; height: 16px; accent-color: var(--accent);
@@ -285,14 +276,6 @@ main {
   transition: border-color 0.15s;
 }
 .form-text-input:focus { border-color: var(--accent); }
-.form-select {
-  width: 100%; padding: 9px 12px;
-  background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px;
-  font-family: inherit; font-size: 13px; outline: none;
-  transition: border-color 0.15s;
-}
-.form-select:focus { border-color: var(--accent); }
 
 .file-drop {
   border: 1.5px dashed var(--border-strong);
@@ -441,7 +424,7 @@ main {
 #loading-screen {
   position: fixed; inset: 0; background: var(--bg);
   z-index: 9999; display: flex; align-items: center; justify-content: center;
-  transition: opacity 0.8s ease;
+  transition: opacity 0.8s ease; cursor: pointer;
 }
 #loading-screen.hidden { opacity: 0; pointer-events: none; }
 .loading-logo { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
@@ -464,6 +447,84 @@ img { -webkit-user-drag: none; user-drag: none; }
   text-align: center; padding: 40px 20px;
   color: var(--text-faint); font-size: 13px;
 }
+.changelog { font-size: 13px; line-height: 1.75; color: var(--text-dim); }
+.changelog h4 {
+  margin: 14px 0 6px; font-size: 13px;
+  color: var(--accent); font-weight: 600;
+}
+.changelog h4:first-child { margin-top: 0; }
+.changelog ul { margin: 0; padding-left: 18px; }
+.changelog li { margin: 2px 0; }
+
+/* ===== 自定义下拉 ===== */
+select.cselect-native { display: none !important; }
+
+.cselect { position: relative; width: 100%; display: block; }
+.tool-row .cselect { width: 130px; flex: 0 0 130px; }
+.setting-item .cselect { width: auto; min-width: 130px; }
+
+.cselect-trigger {
+  position: relative;
+  width: 100%; min-height: 34px;
+  padding: 8px 28px 8px 10px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-family: inherit; font-size: 13px;
+  text-align: left; cursor: pointer; outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex; align-items: center;
+}
+.cselect-trigger:hover { border-color: var(--border-strong); }
+.cselect.open .cselect-trigger { border-color: var(--accent); }
+.tool-row .cselect-trigger { background: var(--surface-2); }
+.setting-item .cselect-trigger { background: var(--surface-2); }
+
+.cselect-label {
+  flex: 1; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--text); text-align: left;
+}
+.cselect-arrow {
+  position: absolute; right: 9px; top: 50%;
+  transform: translateY(-50%);
+  width: 12px; height: 12px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.cselect.open .cselect-arrow { transform: translateY(-50%) rotate(180deg); }
+.cselect.disabled { pointer-events: none; }
+.cselect.disabled .cselect-trigger { opacity: 0.45; cursor: not-allowed; }
+
+.cselect-menu {
+  position: absolute; top: calc(100% + 4px); left: 0;
+  min-width: 100%; width: max-content; max-width: 300px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 300; padding: 4px;
+  max-height: 280px; overflow-y: auto;
+  display: none;
+  animation: cselectIn 0.14s ease;
+}
+html.light .cselect-menu { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+.cselect.open .cselect-menu { display: block; }
+@keyframes cselectIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cselect-option {
+  padding: 8px 10px; border-radius: 5px;
+  font-size: 13px; cursor: pointer;
+  color: var(--text); transition: background 0.12s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cselect-option:hover { background: var(--accent-soft); }
+.cselect-option.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.cselect-option.disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body oncontextmenu="return false">
@@ -495,8 +556,6 @@ img { -webkit-user-drag: none; user-drag: none; }
     </select>
     <select id="type">
       <option value="">全部类型</option>
-      <option>重坦</option><option>中坦</option><option>轻坦</option>
-      <option>反坦</option><option>火炮</option><option>防空车</option><option>工程车</option>
     </select>
     <select id="nation" disabled>
       <option value="">全部国家</option>
@@ -658,10 +717,7 @@ img { -webkit-user-drag: none; user-drag: none; }
         <select class="form-select" id="sub-tier-or-era"></select>
 
         <div class="form-label">类型</div>
-        <select class="form-select" id="sub-type">
-          <option>重坦</option><option>中坦</option><option>轻坦</option>
-          <option>反坦</option><option>火炮</option><option>防空车</option><option>工程车</option>
-        </select>
+        <select class="form-select" id="sub-type"></select>
 
         <div class="form-label">坦克名称（用于图片命名）</div>
         <input class="form-text-input" id="sub-name" placeholder="例：虎王 75WT">
@@ -695,38 +751,6 @@ img { -webkit-user-drag: none; user-drag: none; }
           </div>
         </div>
       </div>
-
-      <div class="tool-card">
-        <h3>注册账号</h3>
-        <div class="desc">生成注册信息，发给站长审核开通</div>
-        <div class="form-label">用户名（登录用）</div>
-        <input class="form-text-input" id="reg-username" placeholder="例：tiger">
-        <div class="form-label">密码</div>
-        <input class="form-text-input" id="reg-password" placeholder="请勿使用重要密码">
-        <div class="form-label">昵称（展示用）</div>
-        <input class="form-text-input" id="reg-nickname" placeholder="例：湾仔虎">
-        <div class="form-label">头像（正方形）</div>
-        <label class="file-drop">
-          <input type="file" id="reg-avatar" accept="image/*">
-          <div id="reg-avatar-label">点击选择头像</div>
-        </label>
-        <div class="preview-grid" id="reg-preview" style="grid-template-columns: 100px;"></div>
-        <div class="progress-track" id="reg-progress-track" style="display:none;">
-          <div class="progress-fill" id="reg-progress-fill"></div>
-        </div>
-        <div class="progress-text" id="reg-progress-text" style="display:none;"></div>
-        <div class="btn-row">
-          <button class="btn btn-primary" onclick="generateRegister()">生成注册信息</button>
-        </div>
-        <div id="reg-result" style="display:none;">
-          <div class="form-label">生成结果</div>
-          <div class="code-preview" id="reg-code"></div>
-          <div class="btn-row">
-            <button class="btn btn-primary" onclick="shareRegister()">发送给站长</button>
-            <button class="btn btn-ghost" onclick="copyRegCode()">仅复制文本</button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -737,6 +761,46 @@ img { -webkit-user-drag: none; user-drag: none; }
       <input id="login-pass" type="password" class="login-input" placeholder="密码">
       <button class="btn btn-primary" style="width:100%; margin-top:6px;" onclick="login()">登录</button>
     </div>
+
+    <div id="register-tool" class="tool-card">
+      <h3>还没有账号？</h3>
+      <div class="desc">填写信息生成注册资料，发给站长审核开通</div>
+
+      <div class="form-label">用户名（登录用）</div>
+      <input class="form-text-input" id="reg-username" placeholder="例：tiger">
+
+      <div class="form-label">密码</div>
+      <input class="form-text-input" id="reg-password" placeholder="请勿使用重要密码">
+
+      <div class="form-label">昵称（展示用）</div>
+      <input class="form-text-input" id="reg-nickname" placeholder="例：湾仔虎">
+
+      <div class="form-label">头像（正方形）</div>
+      <label class="file-drop">
+        <input type="file" id="reg-avatar" accept="image/*">
+        <div id="reg-avatar-label">点击选择头像</div>
+      </label>
+      <div class="preview-grid" id="reg-preview" style="grid-template-columns: 100px;"></div>
+
+      <div class="progress-track" id="reg-progress-track" style="display:none;">
+        <div class="progress-fill" id="reg-progress-fill"></div>
+      </div>
+      <div class="progress-text" id="reg-progress-text" style="display:none;"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="generateRegister()">生成注册信息</button>
+      </div>
+
+      <div id="reg-result" style="display:none;">
+        <div class="form-label">生成结果</div>
+        <div class="code-preview" id="reg-code"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="shareRegister()">发送给站长</button>
+          <button class="btn btn-ghost" onclick="copyRegCode()">仅复制文本</button>
+        </div>
+      </div>
+    </div>
+
     <div id="user-info" style="display:none;">
       <div class="user-header">
         <img id="user-avatar" class="user-avatar" src="avatar.JPG" onerror="this.src='https://via.placeholder.com/80'">
@@ -763,7 +827,7 @@ img { -webkit-user-drag: none; user-drag: none; }
         <label>白天模式</label>
         <div class="switch">
           <input type="checkbox" id="theme-toggle" onchange="toggleTheme(this.checked)">
-          <span class="slider"></span>
+          <label class="slider" for="theme-toggle"></label>
         </div>
       </div>
       <div class="setting-item">
@@ -777,16 +841,44 @@ img { -webkit-user-drag: none; user-drag: none; }
         <label>页面切换动画</label>
         <div class="switch">
           <input type="checkbox" id="anim-toggle" checked onchange="togglePageAnim(this.checked)">
-          <span class="slider"></span>
+          <label class="slider" for="anim-toggle"></label>
         </div>
       </div>
     </div>
+
     <div class="setting-group">
       <div class="setting-item">
         <label>版本</label>
         <span style="font-family:ui-monospace,monospace; font-size:13px; color:var(--text-dim);">v2.1.0</span>
       </div>
     </div>
+
+    <div class="tool-card">
+      <h3>更新日志</h3>
+      <div class="changelog">
+        <h4>v2.1</h4>
+        <ul>
+          <li>新增展品分类：WOT/B、WT、现实/架空</li>
+          <li>筛选栏根据分类动态切换国家与等级/年代</li>
+          <li>WT 国家改为实际国家（美国、德国、俄罗斯/苏联等）</li>
+          <li>"反坦"与"火炮"合并为"自行火炮/歼击车"</li>
+          <li>WOT/B 分类移除防空车选项</li>
+          <li>"2042" 年代更名为"未来先锋"</li>
+          <li>加载屏支持点击关闭</li>
+          <li>注册工具移至"我的"页面</li>
+          <li>修复白天模式开关点击无响应</li>
+          <li>下拉菜单改为网页风格自定义 UI</li>
+        </ul>
+        <h4>v2.0</h4>
+        <ul>
+          <li>全新视觉，简约展览墙风格</li>
+          <li>移除小游戏与运势抽卡</li>
+          <li>新增投稿工具：本地压缩、一键分享给站长</li>
+          <li>类型图标改为内联 SVG</li>
+        </ul>
+      </div>
+    </div>
+
     <footer>
       <img src="qrcode.PNG" class="qrcode" onerror="this.src='https://via.placeholder.com/120?text=QR'">
       <div>扫描二维码获取更多资讯</div>

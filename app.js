@@ -11,22 +11,36 @@ const TYPE_ICONS = {
              <line x1="18" y1="4" x2="14" y2="20"/>
            </g>`,
   '轻坦': `<polygon points="12,3 21,12 12,21 3,12" fill="currentColor"/>`,
-  '反坦': `<polygon points="2,3 22,3 12,21" fill="currentColor"/>`,
-  '火炮': `<rect x="4" y="4" width="16" height="16" rx="1.5" fill="currentColor"/>`,
+  '自行火炮/歼击车': `<polygon points="2,3 22,3 12,21" fill="currentColor"/>`,
   '防空车': `<polygon points="12,3 22,21 2,21" fill="currentColor"/>`,
   '工程车': `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="currentColor"/>`,
 };
 
-// 游戏国家（WOT/B 与 WT 共用）
+const MERGED_TD_SPG = '自行火炮/歼击车';
+const TD_SPG_ALIASES = ['反坦', '火炮', MERGED_TD_SPG];
+function isTDorSPG(type) { return TD_SPG_ALIASES.includes(type); }
+function displayType(type) { return isTDorSPG(type) ? MERGED_TD_SPG : type; }
+
 const GAME_NATIONS = {
   FR: 'F系', DE: 'D系', US: 'M系', RU: 'S系', CN: 'C系', SE: 'V系',
   UK: 'Y系', PL: 'B系', JK: 'J系', JP: 'R系', SP: 'X系', IT: 'I系'
 };
 
-// WOT 等级
+const WT_NATION_OPTIONS = [
+  ['US', '美国'],
+  ['DE', '德国'],
+  ['RU', '俄罗斯 / 苏联'],
+  ['UK', '英国'],
+  ['FR', '法国'],
+  ['IT', '意大利'],
+  ['SE', '瑞典'],
+  ['IL', '以色列'],
+  ['OT', '其他']
+];
+const WT_NATIONS = Object.fromEntries(WT_NATION_OPTIONS);
+
 const WOT_TIERS = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
 
-// WT 等级：1.0 / 1.3 / 1.7 …… 15.0
 const WT_TIERS = (() => {
   const arr = [];
   for (let i = 1; i <= 15; i++) {
@@ -36,59 +50,30 @@ const WT_TIERS = (() => {
   return arr;
 })();
 
-// 现实年代
 const REAL_ERAS = {
   WW1: '一战时期',
   WW2: '二战时期',
   COLD: '冷战降临',
   MODERN: '现代战争',
-  F2042: '2042'
+  F2042: '未来先锋'
 };
 
-// 现实国家
 const REAL_NATIONS = {
-  CN: '中国',
-  RU: '俄罗斯',
-  SU: '苏联',
-  US: '美国',
-  UK: '英国',
-  FR: '法国',
-  DE: '德国',
-  IT: '意大利',
-  PL: '波兰',
-  JP: '日本',
-  SE: '北欧',
-  AU: '澳大利亚',
-  IL: '以色列',
-  AM: '其他（美洲）',
-  AS: '其他（亚洲）',
-  EU: '其他（欧洲）',
-  AF: '其他（非洲）',
-  OC: '其他（澳洲）'
+  CN: '中国', RU: '俄罗斯', SU: '苏联', US: '美国', UK: '英国',
+  FR: '法国', DE: '德国', IT: '意大利', PL: '波兰', JP: '日本',
+  SE: '北欧', AU: '澳大利亚', IL: '以色列',
+  AM: '其他（美洲）', AS: '其他（亚洲）', EU: '其他（欧洲）',
+  AF: '其他（非洲）', OC: '其他（澳洲）'
 };
-
-// 现实国家显示列表（"俄罗斯" 一项把 SU 也归进去）
 const REAL_NATION_OPTIONS = [
-  ['CN', '中国'],
-  ['RU', '俄罗斯 / 苏联'],
-  ['US', '美国'],
-  ['UK', '英国'],
-  ['FR', '法国'],
-  ['DE', '德国'],
-  ['IT', '意大利'],
-  ['PL', '波兰'],
-  ['JP', '日本'],
-  ['SE', '北欧'],
-  ['AU', '澳大利亚'],
+  ['CN', '中国'], ['RU', '俄罗斯 / 苏联'], ['US', '美国'],
+  ['UK', '英国'], ['FR', '法国'], ['DE', '德国'], ['IT', '意大利'],
+  ['PL', '波兰'], ['JP', '日本'], ['SE', '北欧'], ['AU', '澳大利亚'],
   ['IL', '以色列'],
-  ['AM', '其他（美洲）'],
-  ['AS', '其他（亚洲）'],
-  ['EU', '其他（欧洲）'],
-  ['AF', '其他（非洲）'],
-  ['OC', '其他（澳洲）']
+  ['AM', '其他（美洲）'], ['AS', '其他（亚洲）'], ['EU', '其他（欧洲）'],
+  ['AF', '其他（非洲）'], ['OC', '其他（澳洲）']
 ];
 
-// 分类标签
 const CATEGORY_LABELS = { WOT: 'WOT/B', WT: 'WT', REAL: '现实/架空' };
 
 const state = {
@@ -107,12 +92,13 @@ const $ = id => document.getElementById(id);
   loadUserFromStorage();
   bindGlobalEvents();
   renderAuthors();
-  updateFilterOptions();  // 初始化筛选栏
+  updateFilterOptions();
   drawTanks();
   setupPageTabs();
   setupSpottingAutoCalc();
   setupSubmitInputs();
-  updateSubmitOptions();  // 初始化投稿表单
+  updateSubmitOptions();
+  enhanceAllSelects();
   startLoadingScreen();
 })();
 
@@ -184,7 +170,7 @@ function switchPage(pageId) {
   if (pageId === 'submit-page') updateSubmitVisibility();
 }
 
-// ==================== 筛选栏（动态） ====================
+// ==================== 筛选栏 ====================
 function fillSelect(sel, pairs, firstLabel) {
   let html = `<option value="">${firstLabel}</option>`;
   pairs.forEach(([k, v]) => { html += `<option value="${k}">${v}</option>`; });
@@ -195,16 +181,25 @@ function updateFilterOptions() {
   const cat = $('category').value;
   const nationSel = $('nation');
   const tierSel = $('tier-or-era');
+  const typeSel = $('type');
 
   const prevNation = nationSel.value;
   const prevTier = tierSel.value;
+  const prevType = typeSel.value;
+
+  const typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG];
+  if (cat !== 'WOT') typeOpts.push('防空车');
+  typeOpts.push('工程车');
+  let typeHtml = '<option value="">全部类型</option>';
+  typeOpts.forEach(t => { typeHtml += `<option>${t}</option>`; });
+  typeSel.innerHTML = typeHtml;
 
   if (cat === 'WOT') {
     fillSelect(nationSel, Object.entries(GAME_NATIONS), '全部国家');
     fillSelect(tierSel, WOT_TIERS.map(t => [t, t]), '全部等级');
     nationSel.disabled = false; tierSel.disabled = false;
   } else if (cat === 'WT') {
-    fillSelect(nationSel, Object.entries(GAME_NATIONS), '全部国家');
+    fillSelect(nationSel, WT_NATION_OPTIONS, '全部国家');
     fillSelect(tierSel, WT_TIERS.map(t => [t, t]), '全部等级');
     nationSel.disabled = false; tierSel.disabled = false;
   } else if (cat === 'REAL') {
@@ -217,12 +212,14 @@ function updateFilterOptions() {
     nationSel.disabled = true; tierSel.disabled = true;
   }
 
-  // 尝试恢复旧选项（若仍存在）
   if (prevNation && Array.from(nationSel.options).some(o => o.value === prevNation)) {
     nationSel.value = prevNation;
   }
   if (prevTier && Array.from(tierSel.options).some(o => o.value === prevTier)) {
     tierSel.value = prevTier;
+  }
+  if (prevType && Array.from(typeSel.options).some(o => o.value === prevType)) {
+    typeSel.value = prevType;
   }
 }
 
@@ -234,23 +231,26 @@ function escapeHtml(s) {
 }
 
 function getTypeIcon(type) {
-  const inner = TYPE_ICONS[type];
+  const key = displayType(type);
+  const inner = TYPE_ICONS[key];
   if (!inner) return '';
   return `<svg class="type-icon" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
 }
 
-// 坦克分类（默认 WOT）
 function getTankCategory(t) {
   return t.category || 'WOT';
 }
 
-// 卡片信息文本："VIII · D系" 或 "二战 · 德国"
 function getCardInfoText(t) {
   const cat = getTankCategory(t);
   if (cat === 'REAL') {
     const era = REAL_ERAS[t.era] || t.era || '';
     const nation = REAL_NATIONS[t.nation] || t.nation || '';
     return `${era}${era && nation ? ' · ' : ''}${nation}`;
+  }
+  if (cat === 'WT') {
+    const nation = WT_NATIONS[t.nation] || (t.nation === 'SU' ? WT_NATIONS.RU : t.nation) || '';
+    return `${t.tier || ''}${t.tier && nation ? ' · ' : ''}${nation}`;
   }
   const nation = GAME_NATIONS[t.nation] || t.nation || '';
   return `${t.tier || ''}${t.tier && nation ? ' · ' : ''}${nation}`;
@@ -277,11 +277,17 @@ function drawTanks() {
   const list = tanks.filter(t => {
     const tCat = getTankCategory(t);
     if (cat && tCat !== cat) return false;
-    if (typeVal && t.type !== typeVal) return false;
+
+    if (typeVal) {
+      if (typeVal === MERGED_TD_SPG) {
+        if (!isTDorSPG(t.type)) return false;
+      } else {
+        if (t.type !== typeVal) return false;
+      }
+    }
 
     if (nationVal) {
-      // 现实分类：选"俄罗斯"时 SU + RU 都算
-      if (cat === 'REAL' && nationVal === 'RU') {
+      if ((cat === 'WT' || cat === 'REAL') && nationVal === 'RU') {
         if (t.nation !== 'RU' && t.nation !== 'SU') return false;
       } else {
         if (t.nation !== nationVal) return false;
@@ -320,7 +326,7 @@ function drawTanks() {
     } else {
       card.innerHTML = `
         <div class="title-container">${icon}<span>${escapeHtml(t.name)}</span></div>
-        <span class="type-badge">${escapeHtml(getCardInfoText(t))} · ${t.type}</span>
+        <span class="type-badge">${escapeHtml(getCardInfoText(t))} · ${displayType(t.type)}</span>
       `;
     }
     card.addEventListener('click', () => showTankDetail(t));
@@ -383,11 +389,15 @@ function showTankDetail(t) {
   if (cat === 'REAL') {
     metaHtml += `<span class="meta-pill">${escapeHtml(REAL_ERAS[t.era] || t.era || '')}</span>`;
     metaHtml += `<span class="meta-pill">${escapeHtml(REAL_NATIONS[t.nation] || t.nation || '')}</span>`;
+  } else if (cat === 'WT') {
+    metaHtml += `<span class="meta-pill">${escapeHtml(t.tier || '')} 级</span>`;
+    const wtNation = WT_NATIONS[t.nation] || (t.nation === 'SU' ? WT_NATIONS.RU : t.nation) || '';
+    metaHtml += `<span class="meta-pill">${escapeHtml(wtNation)}</span>`;
   } else {
     metaHtml += `<span class="meta-pill">${escapeHtml(t.tier || '')} 级</span>`;
     metaHtml += `<span class="meta-pill">${escapeHtml(GAME_NATIONS[t.nation] || t.nation || '')}</span>`;
   }
-  metaHtml += `<span class="meta-pill">${t.type}</span>`;
+  metaHtml += `<span class="meta-pill">${displayType(t.type)}</span>`;
   metaHtml += `<span class="meta-pill">${CATEGORY_LABELS[cat]}</span>`;
   $('detail-meta').innerHTML = metaHtml;
 
@@ -445,11 +455,15 @@ function logout() {
   state.currentUser = null;
   localStorage.removeItem('tw_user');
   $('login-box').style.display = 'block';
+  const regTool = $('register-tool');
+  if (regTool) regTool.style.display = 'block';
   $('user-info').style.display = 'none';
   if (state.currentPage === 'submit-page') updateSubmitVisibility();
 }
 function showUserUI() {
   $('login-box').style.display = 'none';
+  const regTool = $('register-tool');
+  if (regTool) regTool.style.display = 'none';
   $('user-info').style.display = 'block';
   const u = state.currentUser.data;
   $('welcome-user').textContent = u.nickname || u.username;
@@ -663,19 +677,26 @@ function setupSubmitInputs() {
   }
 }
 
-// 投稿表单：分类变化后刷新二级选项
 function updateSubmitOptions() {
   const cat = $('sub-category').value;
   const nationSel = $('sub-nation');
   const tierSel = $('sub-tier-or-era');
   const tierLabel = $('sub-tier-label');
+  const typeSel = $('sub-type');
+
+  const typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG];
+  if (cat !== 'WOT') typeOpts.push('防空车');
+  typeOpts.push('工程车');
+  let typeHtml = '';
+  typeOpts.forEach(t => { typeHtml += `<option>${t}</option>`; });
+  typeSel.innerHTML = typeHtml;
 
   if (cat === 'WOT') {
     fillSelect(nationSel, Object.entries(GAME_NATIONS), '请选择国家');
     fillSelect(tierSel, WOT_TIERS.map(t => [t, t]), '请选择等级');
     tierLabel.textContent = '等级';
   } else if (cat === 'WT') {
-    fillSelect(nationSel, Object.entries(GAME_NATIONS), '请选择国家');
+    fillSelect(nationSel, WT_NATION_OPTIONS, '请选择国家');
     fillSelect(tierSel, WT_TIERS.map(t => [t, t]), '请选择等级');
     tierLabel.textContent = '等级';
   } else if (cat === 'REAL') {
@@ -726,12 +747,13 @@ async function generateTankSubmission() {
   const imgsList = outFiles.map(f => `"${f.name}"`).join(',');
   const authorId = state.currentUser.key;
   const text = $('sub-text').value.trim().replace(/\n/g, '\\n').replace(/"/g, '\\"');
+  const typeValue = displayType(type);
 
   let code;
   if (cat === 'REAL') {
-    code = `{ category:"REAL", name:"${name}", era:"${tierOrEra}", nation:"${nation}", type:"${type}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
+    code = `{ category:"REAL", name:"${name}", era:"${tierOrEra}", nation:"${nation}", type:"${typeValue}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
   } else {
-    code = `{ category:"${cat}", name:"${name}", nation:"${nation}", tier:"${tierOrEra}", type:"${type}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
+    code = `{ category:"${cat}", name:"${name}", nation:"${nation}", tier:"${tierOrEra}", type:"${typeValue}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
   }
 
   tankSubmission.code = code;
@@ -1051,4 +1073,93 @@ function clearSpotting() {
   $('still-camo-row').style.display = 'flex';
   $('moving-camo-row').style.display = 'none';
   manualCamoOverride = false;
+}
+
+// ==================== 自定义下拉 ====================
+function enhanceSelect(selectEl) {
+  if (selectEl.dataset.enhanced === '1') return;
+  selectEl.dataset.enhanced = '1';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'cselect';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'cselect-trigger';
+  trigger.innerHTML = `<span class="cselect-label"></span>
+    <svg class="cselect-arrow" viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5"
+            fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
+  const menu = document.createElement('div');
+  menu.className = 'cselect-menu';
+
+  wrapper.appendChild(trigger);
+  wrapper.appendChild(menu);
+
+  selectEl.parentNode.insertBefore(wrapper, selectEl);
+  selectEl.classList.add('cselect-native');
+
+  function refresh() {
+    const opts = Array.from(selectEl.options);
+    const cur = selectEl.value;
+    menu.innerHTML = '';
+    opts.forEach(opt => {
+      const item = document.createElement('div');
+      item.className = 'cselect-option';
+      if (opt.value === cur) item.classList.add('selected');
+      if (opt.disabled) item.classList.add('disabled');
+      item.dataset.value = opt.value;
+      item.textContent = opt.textContent;
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        if (opt.disabled) return;
+        selectEl.value = opt.value;
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        close();
+      });
+      menu.appendChild(item);
+    });
+    const sel = selectEl.options[selectEl.selectedIndex];
+    trigger.querySelector('.cselect-label').textContent = sel ? sel.textContent : '';
+    wrapper.classList.toggle('disabled', selectEl.disabled);
+  }
+
+  function open() {
+    document.querySelectorAll('.cselect.open').forEach(el => {
+      if (el !== wrapper) el.classList.remove('open');
+    });
+    wrapper.classList.add('open');
+  }
+  function close() { wrapper.classList.remove('open'); }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    if (selectEl.disabled) return;
+    if (wrapper.classList.contains('open')) close();
+    else open();
+  });
+
+  selectEl.addEventListener('change', refresh);
+
+  const mo = new MutationObserver(() => {
+    refresh();
+    wrapper.classList.toggle('disabled', selectEl.disabled);
+  });
+  mo.observe(selectEl, {
+    childList: true,
+    attributes: true,
+    attributeFilter: ['disabled']
+  });
+
+  refresh();
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.cselect.open').forEach(el => el.classList.remove('open'));
+});
+
+function enhanceAllSelects() {
+  document.querySelectorAll('select').forEach(enhanceSelect);
 }
