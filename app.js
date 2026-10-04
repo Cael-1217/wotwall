@@ -117,12 +117,18 @@ const $ = id => document.getElementById(id);
 })();
 
 function startLoadingScreen() {
-  setTimeout(() => {
-    const s = $('loading-screen');
-    if (!s) return;
+  const s = $('loading-screen');
+  if (!s) return;
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     s.classList.add('hidden');
     setTimeout(() => { s.style.display = 'none'; }, 850);
-  }, 3000);
+  };
+  s.addEventListener('click', dismiss);
+  s.addEventListener('touchstart', dismiss, { passive: true });
+  setTimeout(dismiss, 3000);
 }
 
 // ==================== 设置 ====================
