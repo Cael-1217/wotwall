@@ -11,16 +11,6 @@ const members = {
     "tiger": { username: "tiger", password: "tigerC", role: "member", nickname: "湾仔虎" }
 };
 
-// 车型图标
-const typeIcons = {
-    "重坦": { png: "ht.PNG", fallback: "▰" },
-    "中坦": { png: "mt.PNG", fallback: "▱" },
-    "轻坦": { png: "lt.PNG", fallback: "▲" },
-    "反坦": { png: "td.PNG", fallback: "▼" },
-    "火炮": { png: "spg.PNG", fallback: "■" },
-    "工程车": { png: "eng.PNG", fallback: "⚙" }
-};
-
 // 创作者数据库
 const authors = {
     "cael": { name:"烛梦Cael", avatar:"avatar.JPG", title:"站长", workText:"🖼️ 作品浏览", fansCount:7, joinTime:"2026-6-7 20:45:15", totalWorks:67 },
@@ -32,7 +22,7 @@ const authors = {
     "tiger": { name:"湾仔虎", avatar:"avatar3.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:1 }
 };
 
-// 坦克数据库（非常长，手机粘贴可能卡顿几秒，请耐心）
+// 坦克数据库
 const tanks = [
     { name:"EBG-62", nation:"FR", tier:"VIII", type:"工程车", authorId:"cael", imgs:["EBG-62.JPG"], text:"F系VIII级工程车。" },
     { name:"EBG-54", nation:"FR", tier:"IX", type:"工程车", authorId:"cael", imgs:["EBG-54.JPG"], text:"F系IX级工程车。" },
@@ -56,17 +46,17 @@ const tanks = [
     { name:"AVK27 Utkas1 12cm", nation:"SE", tier:"VII", type:"火炮", authorId:"cael", imgs:["AVK27.JPG"], text:"AVK27 Utkas1 12cm\nV系VII级火炮" },
     { name:"虎王 75WT", nation:"DE", tier:"VIII", type:"重坦", authorId:"445", imgs:["75WT.JPG"], text:"未定义" },
     { name:"V128FH中坦", nation:"DE", tier:"VIII", type:"中坦", authorId:"445", imgs:["V128.JPG"], text:"未定义" },
-     { name:"猎鼠虎", nation:"DE", tier:"IX", type:"反坦", authorId:"445", imgs:["JMT.JPG"], text:"未定义" },
-     { name:"ADGZ 75支援型", nation:"DE", tier:"VII", type:"轻坦", authorId:"445", imgs:["ADGZ75.JPG"], text:"未定义" },
-     { name:"IS-3 85m", nation:"RU", tier:"VII", type:"重坦", authorId:"xian", imgs:["385M.JPG"], text:"俯角-15，装填5秒，20度方向机" },
-          { name:"T58E2", nation:"US", tier:"XI", type:"重坦", authorId:"xian", imgs:["T58.JPG"], text:"T58E2(甲弹对抗型)，70倍155炮，2.6秒一发，6发待发，方向机37度/s。\nAPCBC初速1200，在1500米距离穿深420，装药700g，65度斜穿180。\nHEAT静破406，动破380。\nHESH装药16Kg，203穿。\n首上65度125箭簇形，首下55度125。炮盾320/20度弧形，炮塔正面角度加大，炮塔座连接处加上了一块可活动250mm装甲" },
-     { name:"IS-152", nation:"RU", tier:"VIII", type:"反坦", authorId:"xian", imgs:["IS152.JPG"], text:"未定义" },
-     { name:"ISU-100e", nation:"RU", tier:"VII", type:"反坦", authorId:"xian", imgs:["ISU100E.JPG"], text:"未定义" },
-     { name:"Tiger II C", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["E75S.JPG"], text:"未定义" },
-     { name:"Panzer II", nation:"DE", tier:"IX", type:"中坦", authorId:"xian", imgs:["E50S.JPG"], text:"未定义" },
-     { name:"IS-6 AAS-OF", nation:"RU", tier:"VIII", type:"重坦", authorId:"xian", imgs:["IS6AAS.JPG"], text:'IS-6 AAS-OF(甲弹对抗特化改进方案)。\n车体首上69度105mm箭簇型，首下55度125mm，侧面上半50度105mm，下半81度75mm/垂直110mm，后方60度75mm。\n炮塔正面255mm～200mm/35～55度，侧面200mm/38度，后方105mm/25度，炮盾220+100mm(320mm)，车长塔正面150mm/40度。\n主炮为62倍D35T型122炮，半自动装填，5～13倍放大，俯角-5，仰角25，方向机12度/s，30km时速以下时低速垂稳生效。\n全重59.8吨，功重比12.71，极速43，倒车16。' },
-     { name:"未定义", nation:"US", tier:"XI", type:"重坦", authorId:"tiger", imgs:["T.PNG"], text:"未完工" },       
-     { name:"60式重坦", nation:"CN", tier:"X", type:"重坦", authorId:"xian", imgs:["CN7.JPG"], text:'Wz111太弱了，给她小小加强一下:\n60式重坦(🕰️风味is7)，权重7.7金币车。\n首上165mm/60度，首下170mm55度，侧面150mm/50度。\n炮塔正面303，等效380～490，侧面165mm42度，炮盾360～200，等效402～460。\n70倍130炮，全口径装药弹100米穿深420，65度斜穿152，177.7g装药，高爆3.2Kg装药，破甲动破460mm，装药3.1Kg，可带32发炮弹。\n15秒装填，12度方向机，3～12倍炮镜，有垂稳、光学测距仪，2只12.7与2只7.62机枪。\n前进37倒车12，功重比12。\n依旧大技霸最新力作，依旧俺寻思这车能造得又大又猛🤓' },
+    { name:"猎鼠虎", nation:"DE", tier:"IX", type:"反坦", authorId:"445", imgs:["JMT.JPG"], text:"未定义" },
+    { name:"ADGZ 75支援型", nation:"DE", tier:"VII", type:"轻坦", authorId:"445", imgs:["ADGZ75.JPG"], text:"未定义" },
+    { name:"IS-3 85m", nation:"RU", tier:"VII", type:"重坦", authorId:"xian", imgs:["385M.JPG"], text:"俯角-15，装填5秒，20度方向机" },
+    { name:"T58E2", nation:"US", tier:"XI", type:"重坦", authorId:"xian", imgs:["T58.JPG"], text:"T58E2(甲弹对抗型)，70倍155炮，2.6秒一发，6发待发，方向机37度/s。\nAPCBC初速1200，在1500米距离穿深420，装药700g，65度斜穿180。\nHEAT静破406，动破380。\nHESH装药16Kg，203穿。\n首上65度125箭簇形，首下55度125。炮盾320/20度弧形，炮塔正面角度加大，炮塔座连接处加上了一块可活动250mm装甲" },
+    { name:"IS-152", nation:"RU", tier:"VIII", type:"反坦", authorId:"xian", imgs:["IS152.JPG"], text:"未定义" },
+    { name:"ISU-100e", nation:"RU", tier:"VII", type:"反坦", authorId:"xian", imgs:["ISU100E.JPG"], text:"未定义" },
+    { name:"Tiger II C", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["E75S.JPG"], text:"未定义" },
+    { name:"Panzer II", nation:"DE", tier:"IX", type:"中坦", authorId:"xian", imgs:["E50S.JPG"], text:"未定义" },
+    { name:"IS-6 AAS-OF", nation:"RU", tier:"VIII", type:"重坦", authorId:"xian", imgs:["IS6AAS.JPG"], text:'IS-6 AAS-OF(甲弹对抗特化改进方案)。\n车体首上69度105mm箭簇型，首下55度125mm，侧面上半50度105mm，下半81度75mm/垂直110mm，后方60度75mm。\n炮塔正面255mm～200mm/35～55度，侧面200mm/38度，后方105mm/25度，炮盾220+100mm(320mm)，车长塔正面150mm/40度。\n主炮为62倍D35T型122炮，半自动装填，5～13倍放大，俯角-5，仰角25，方向机12度/s，30km时速以下时低速垂稳生效。\n全重59.8吨，功重比12.71，极速43，倒车16。' },
+    { name:"T-未命名原型", nation:"US", tier:"XI", type:"重坦", authorId:"tiger", imgs:["T.PNG"], text:"未完工" },
+    { name:"60式重坦", nation:"CN", tier:"X", type:"重坦", authorId:"xian", imgs:["CN7.JPG"], text:'Wz111太弱了，给她小小加强一下:\n60式重坦(🕰️风味is7)，权重7.7金币车。\n首上165mm/60度，首下170mm55度，侧面150mm/50度。\n炮塔正面303，等效380～490，侧面165mm42度，炮盾360～200，等效402～460。\n70倍130炮，全口径装药弹100米穿深420，65度斜穿152，177.7g装药，高爆3.2Kg装药，破甲动破460mm，装药3.1Kg，可带32发炮弹。\n15秒装填，12度方向机，3～12倍炮镜，有垂稳、光学测距仪，2只12.7与2只7.62机枪。\n前进37倒车12，功重比12。\n依旧大技霸最新力作，依旧俺寻思这车能造得又大又猛🤓' },
     { name:"IS-4锥膛炮", nation:"RU", tier:"X", type:"重坦", authorId:"xian", imgs:["IS4WDF.JPG"], text:"大技霸最新力作:1400倍径5.56mm锥膛炮is4" },
     { name:"爆改版虎王", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["TKWDF.JPG"], text:"爆改哈基虎，首上60度150，炮塔正面35度200，炮塔后方40度110，炮塔侧面105，主炮为L70/128炮" },
     { name:"EBG-60", nation:"FR", tier:"XI", type:"工程车", authorId:"cael", imgs:["EBG-60.JPG"], text:"F系XI级工程车" }

@@ -1,74 +1,155 @@
-// ==================== TanksWall v2.0 ====================
-// 坦克展品墙 · 无游戏 · 无抽卡
+// ==================== TanksWall v2.1 ====================
 
 const TYPE_ICONS = {
-  "重坦": "ht.PNG",
-  "中坦": "mt.PNG",
-  "轻坦": "lt.PNG",
-  "反坦": "td.PNG",
-  "火炮": "spg.PNG",
-  "工程车": "eng.PNG",
+  '重坦': `<g stroke="currentColor" stroke-width="3" stroke-linecap="butt">
+             <line x1="8"  y1="4" x2="4"  y2="20"/>
+             <line x1="14" y1="4" x2="10" y2="20"/>
+             <line x1="20" y1="4" x2="16" y2="20"/>
+           </g>`,
+  '中坦': `<g stroke="currentColor" stroke-width="4" stroke-linecap="butt">
+             <line x1="10" y1="4" x2="6"  y2="20"/>
+             <line x1="18" y1="4" x2="14" y2="20"/>
+           </g>`,
+  '轻坦': `<polygon points="12,3 21,12 12,21 3,12" fill="currentColor"/>`,
+  '反坦': `<polygon points="2,3 22,3 12,21" fill="currentColor"/>`,
+  '火炮': `<rect x="4" y="4" width="16" height="16" rx="1.5" fill="currentColor"/>`,
+  '防空车': `<polygon points="12,3 22,21 2,21" fill="currentColor"/>`,
+  '工程车': `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="currentColor"/>`,
 };
 
-const NATION_NAMES = {
-  FR: 'F系', DE: 'D系', US: 'M系', RU: 'S系', CN: 'C系',
-  SE: 'V系', UK: 'Y系', PL: 'B系', JK: 'J系', JP: 'R系',
-  SP: 'X系', IT: 'I系'
+// 游戏国家（WOT/B 与 WT 共用）
+const GAME_NATIONS = {
+  FR: 'F系', DE: 'D系', US: 'M系', RU: 'S系', CN: 'C系', SE: 'V系',
+  UK: 'Y系', PL: 'B系', JK: 'J系', JP: 'R系', SP: 'X系', IT: 'I系'
 };
+
+// WOT 等级
+const WOT_TIERS = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+
+// WT 等级：1.0 / 1.3 / 1.7 …… 15.0
+const WT_TIERS = (() => {
+  const arr = [];
+  for (let i = 1; i <= 15; i++) {
+    arr.push(`${i}.0`);
+    if (i < 15) { arr.push(`${i}.3`); arr.push(`${i}.7`); }
+  }
+  return arr;
+})();
+
+// 现实年代
+const REAL_ERAS = {
+  WW1: '一战时期',
+  WW2: '二战时期',
+  COLD: '冷战降临',
+  MODERN: '现代战争',
+  F2042: '2042'
+};
+
+// 现实国家
+const REAL_NATIONS = {
+  CN: '中国',
+  RU: '俄罗斯',
+  SU: '苏联',
+  US: '美国',
+  UK: '英国',
+  FR: '法国',
+  DE: '德国',
+  IT: '意大利',
+  PL: '波兰',
+  JP: '日本',
+  SE: '北欧',
+  AU: '澳大利亚',
+  IL: '以色列',
+  AM: '其他（美洲）',
+  AS: '其他（亚洲）',
+  EU: '其他（欧洲）',
+  AF: '其他（非洲）',
+  OC: '其他（澳洲）'
+};
+
+// 现实国家显示列表（"俄罗斯" 一项把 SU 也归进去）
+const REAL_NATION_OPTIONS = [
+  ['CN', '中国'],
+  ['RU', '俄罗斯 / 苏联'],
+  ['US', '美国'],
+  ['UK', '英国'],
+  ['FR', '法国'],
+  ['DE', '德国'],
+  ['IT', '意大利'],
+  ['PL', '波兰'],
+  ['JP', '日本'],
+  ['SE', '北欧'],
+  ['AU', '澳大利亚'],
+  ['IL', '以色列'],
+  ['AM', '其他（美洲）'],
+  ['AS', '其他（亚洲）'],
+  ['EU', '其他（欧洲）'],
+  ['AF', '其他（非洲）'],
+  ['OC', '其他（澳洲）']
+];
+
+// 分类标签
+const CATEGORY_LABELS = { WOT: 'WOT/B', WT: 'WT', REAL: '现实/架空' };
 
 const state = {
   currentPage: 'tank-page',
   currentAuthor: '',
-  currentUser: null,       // { key, data }
+  currentUser: null,
   pageAnimEnabled: true,
   layout: 'grid',
 };
 
 const $ = id => document.getElementById(id);
 
-// ==================== 启动 ====================
+// ==================== 初始化 ====================
 (function init() {
   loadSettings();
   loadUserFromStorage();
   bindGlobalEvents();
   renderAuthors();
+  updateFilterOptions();  // 初始化筛选栏
   drawTanks();
   setupPageTabs();
   setupSpottingAutoCalc();
-  simulateLoading();
+  setupSubmitInputs();
+  updateSubmitOptions();  // 初始化投稿表单
+  startLoadingScreen();
 })();
 
-// ==================== 设置持久化 ====================
+function startLoadingScreen() {
+  setTimeout(() => {
+    const s = $('loading-screen');
+    if (!s) return;
+    s.classList.add('hidden');
+    setTimeout(() => { s.style.display = 'none'; }, 850);
+  }, 3000);
+}
+
+// ==================== 设置 ====================
 function loadSettings() {
-  // 主题
   if (localStorage.getItem('tw_theme') === 'light') {
     document.documentElement.classList.add('light');
     $('theme-toggle').checked = true;
   }
-  // 布局
   const layout = localStorage.getItem('tw_layout') || 'grid';
   state.layout = layout;
   $('layout-select').value = layout;
   $('grid').className = layout === 'list' ? 'list-mode' : 'grid-mode';
-  // 动画
   if (localStorage.getItem('tw_anim') === '0') {
     state.pageAnimEnabled = false;
     $('anim-toggle').checked = false;
   }
 }
-
 function toggleTheme(isLight) {
   document.documentElement.classList.toggle('light', isLight);
   localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
 }
-
 function toggleLayout(mode) {
   state.layout = mode;
   $('grid').className = mode === 'list' ? 'list-mode' : 'grid-mode';
   localStorage.setItem('tw_layout', mode);
   drawTanks();
 }
-
 function togglePageAnim(enabled) {
   state.pageAnimEnabled = enabled;
   localStorage.setItem('tw_anim', enabled ? '1' : '0');
@@ -80,28 +161,62 @@ function setupPageTabs() {
     btn.addEventListener('click', () => switchPage(btn.dataset.page));
   });
 }
-
 function switchPage(pageId) {
   if (state.currentPage === pageId) return;
   state.currentPage = pageId;
-
   document.querySelectorAll('.tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.page === pageId);
   });
-
-  // 筛选栏只在展品页显示
   $('header-filters').style.display = pageId === 'tank-page' ? 'grid' : 'none';
-
   document.querySelectorAll('.page-content').forEach(p => {
     const isTarget = p.id === pageId;
     p.classList.toggle('active', isTarget);
     p.classList.toggle('no-anim', !state.pageAnimEnabled);
   });
-
   window.scrollTo(0, 0);
+  if (pageId === 'user-page' && state.currentUser) updateFavUI();
+  if (pageId === 'submit-page') updateSubmitVisibility();
+}
 
-  if (pageId === 'user-page' && state.currentUser) {
-    updateFavUI();
+// ==================== 筛选栏（动态） ====================
+function fillSelect(sel, pairs, firstLabel) {
+  let html = `<option value="">${firstLabel}</option>`;
+  pairs.forEach(([k, v]) => { html += `<option value="${k}">${v}</option>`; });
+  sel.innerHTML = html;
+}
+
+function updateFilterOptions() {
+  const cat = $('category').value;
+  const nationSel = $('nation');
+  const tierSel = $('tier-or-era');
+
+  const prevNation = nationSel.value;
+  const prevTier = tierSel.value;
+
+  if (cat === 'WOT') {
+    fillSelect(nationSel, Object.entries(GAME_NATIONS), '全部国家');
+    fillSelect(tierSel, WOT_TIERS.map(t => [t, t]), '全部等级');
+    nationSel.disabled = false; tierSel.disabled = false;
+  } else if (cat === 'WT') {
+    fillSelect(nationSel, Object.entries(GAME_NATIONS), '全部国家');
+    fillSelect(tierSel, WT_TIERS.map(t => [t, t]), '全部等级');
+    nationSel.disabled = false; tierSel.disabled = false;
+  } else if (cat === 'REAL') {
+    fillSelect(nationSel, REAL_NATION_OPTIONS, '全部国家');
+    fillSelect(tierSel, Object.entries(REAL_ERAS), '任意年代');
+    nationSel.disabled = false; tierSel.disabled = false;
+  } else {
+    nationSel.innerHTML = '<option value="">全部国家</option>';
+    tierSel.innerHTML = '<option value="">全部等级 / 年代</option>';
+    nationSel.disabled = true; tierSel.disabled = true;
+  }
+
+  // 尝试恢复旧选项（若仍存在）
+  if (prevNation && Array.from(nationSel.options).some(o => o.value === prevNation)) {
+    nationSel.value = prevNation;
+  }
+  if (prevTier && Array.from(tierSel.options).some(o => o.value === prevTier)) {
+    tierSel.value = prevTier;
   }
 }
 
@@ -113,9 +228,26 @@ function escapeHtml(s) {
 }
 
 function getTypeIcon(type) {
-  const png = TYPE_ICONS[type];
-  if (!png) return '';
-  return `<img class="type-icon" src="${png}" alt="" onerror="this.style.display='none'">`;
+  const inner = TYPE_ICONS[type];
+  if (!inner) return '';
+  return `<svg class="type-icon" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+}
+
+// 坦克分类（默认 WOT）
+function getTankCategory(t) {
+  return t.category || 'WOT';
+}
+
+// 卡片信息文本："VIII · D系" 或 "二战 · 德国"
+function getCardInfoText(t) {
+  const cat = getTankCategory(t);
+  if (cat === 'REAL') {
+    const era = REAL_ERAS[t.era] || t.era || '';
+    const nation = REAL_NATIONS[t.nation] || t.nation || '';
+    return `${era}${era && nation ? ' · ' : ''}${nation}`;
+  }
+  const nation = GAME_NATIONS[t.nation] || t.nation || '';
+  return `${t.tier || ''}${t.tier && nation ? ' · ' : ''}${nation}`;
 }
 
 function drawTanks() {
@@ -123,11 +255,11 @@ function drawTanks() {
   if (!grid) return;
 
   const searchVal = $('search').value.trim().toLowerCase();
+  const cat = $('category').value;
   const nationVal = $('nation').value;
-  const tierVal = $('tier').value;
+  const tierVal = $('tier-or-era').value;
   const typeVal = $('type').value;
 
-  // 过滤提示条
   const hint = $('author-filter-hint');
   if (state.currentAuthor && authors[state.currentAuthor]) {
     $('filter-hint-text').textContent = `正在浏览「${authors[state.currentAuthor].name}」的展品`;
@@ -137,11 +269,29 @@ function drawTanks() {
   }
 
   const list = tanks.filter(t => {
-    if (nationVal && t.nation !== nationVal) return false;
-    if (tierVal && t.tier !== tierVal) return false;
+    const tCat = getTankCategory(t);
+    if (cat && tCat !== cat) return false;
     if (typeVal && t.type !== typeVal) return false;
-    if (state.currentAuthor && t.authorId !== state.currentAuthor) return false;
+
+    if (nationVal) {
+      // 现实分类：选"俄罗斯"时 SU + RU 都算
+      if (cat === 'REAL' && nationVal === 'RU') {
+        if (t.nation !== 'RU' && t.nation !== 'SU') return false;
+      } else {
+        if (t.nation !== nationVal) return false;
+      }
+    }
+
+    if (tierVal) {
+      if (cat === 'REAL') {
+        if (t.era !== tierVal) return false;
+      } else {
+        if (t.tier !== tierVal) return false;
+      }
+    }
+
     if (searchVal && !t.name.toLowerCase().includes(searchVal)) return false;
+    if (state.currentAuthor && t.authorId !== state.currentAuthor) return false;
     return true;
   });
 
@@ -164,7 +314,7 @@ function drawTanks() {
     } else {
       card.innerHTML = `
         <div class="title-container">${icon}<span>${escapeHtml(t.name)}</span></div>
-        <span class="type-badge">${t.tier} · ${t.type}</span>
+        <span class="type-badge">${escapeHtml(getCardInfoText(t))} · ${t.type}</span>
       `;
     }
     card.addEventListener('click', () => showTankDetail(t));
@@ -179,17 +329,15 @@ function clickToViewAuthor(key) {
   switchPage('tank-page');
   drawTanks();
 }
-
 function clearAuthorFilter() {
   state.currentAuthor = '';
   drawTanks();
 }
 
-// ==================== 作者列表 ====================
+// ==================== 作者 ====================
 function renderAuthors() {
   const container = $('author-card-container');
   if (!container) return;
-
   container.innerHTML = Object.keys(authors).map(key => {
     const a = authors[key];
     return `
@@ -212,7 +360,6 @@ function renderAuthors() {
       </div>
     `;
   }).join('');
-
   container.querySelectorAll('.author-work-preview').forEach(el => {
     el.addEventListener('click', () => clickToViewAuthor(el.dataset.author));
   });
@@ -221,17 +368,24 @@ function renderAuthors() {
 // ==================== 详情 ====================
 function showTankDetail(t) {
   const detail = $('detail');
+  const cat = getTankCategory(t);
 
   $('dtitle').textContent = t.name;
   $('desc').textContent = t.text || '暂无简介';
-  $('detail-meta').innerHTML = `
-    <span class="meta-pill">${t.tier} 级</span>
-    <span class="meta-pill">${t.type}</span>
-    <span class="meta-pill">${NATION_NAMES[t.nation] || t.nation}</span>
-  `;
 
-  const gallery = $('gallery');
-  gallery.innerHTML = t.imgs.map(src =>
+  let metaHtml = '';
+  if (cat === 'REAL') {
+    metaHtml += `<span class="meta-pill">${escapeHtml(REAL_ERAS[t.era] || t.era || '')}</span>`;
+    metaHtml += `<span class="meta-pill">${escapeHtml(REAL_NATIONS[t.nation] || t.nation || '')}</span>`;
+  } else {
+    metaHtml += `<span class="meta-pill">${escapeHtml(t.tier || '')} 级</span>`;
+    metaHtml += `<span class="meta-pill">${escapeHtml(GAME_NATIONS[t.nation] || t.nation || '')}</span>`;
+  }
+  metaHtml += `<span class="meta-pill">${t.type}</span>`;
+  metaHtml += `<span class="meta-pill">${CATEGORY_LABELS[cat]}</span>`;
+  $('detail-meta').innerHTML = metaHtml;
+
+  $('gallery').innerHTML = t.imgs.map(src =>
     `<img src="${src}" alt="" onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">`
   ).join('');
 
@@ -247,12 +401,10 @@ function showTankDetail(t) {
   `;
 
   updateFavButton(t.name);
-
   detail.classList.add('active');
   detail.scrollTop = 0;
   document.body.style.overflow = 'hidden';
 }
-
 function closeDetail() {
   $('detail').classList.remove('active');
   document.body.style.overflow = '';
@@ -266,91 +418,77 @@ function loadUserFromStorage() {
     showUserUI();
   }
 }
-
 function login() {
   const u = $('login-user').value.trim();
   const p = $('login-pass').value.trim();
   if (!u || !p) { toast('请输入用户名和密码'); return; }
-
   let foundKey = null;
   for (const k in members) {
     if ((k === u || members[k].username === u) && members[k].password === p) {
-      foundKey = k;
-      break;
+      foundKey = k; break;
     }
   }
-
   if (!foundKey) { toast('用户名或密码错误'); return; }
-
   state.currentUser = { key: foundKey, data: members[foundKey] };
   localStorage.setItem('tw_user', foundKey);
-  $('login-user').value = '';
-  $('login-pass').value = '';
+  $('login-user').value = ''; $('login-pass').value = '';
   showUserUI();
   toast('登录成功');
 }
-
 function logout() {
   state.currentUser = null;
   localStorage.removeItem('tw_user');
   $('login-box').style.display = 'block';
   $('user-info').style.display = 'none';
+  if (state.currentPage === 'submit-page') updateSubmitVisibility();
 }
-
 function showUserUI() {
   $('login-box').style.display = 'none';
   $('user-info').style.display = 'block';
-
   const u = state.currentUser.data;
   $('welcome-user').textContent = u.nickname || u.username;
   $('user-role').textContent = u.role === 'admin' ? '管理员' : '成员';
-
   const author = authors[state.currentUser.key];
   if (author) $('user-avatar').src = author.avatar;
-
   updateFavUI();
+  if (state.currentPage === 'submit-page') updateSubmitVisibility();
+}
+
+function updateSubmitVisibility() {
+  const logged = !!state.currentUser;
+  $('submit-need-login').style.display = logged ? 'none' : 'block';
+  $('submit-content').style.display = logged ? 'block' : 'none';
 }
 
 // ==================== 收藏 ====================
-function favKey() {
-  return state.currentUser ? `tw_fav_${state.currentUser.key}` : null;
-}
-
+function favKey() { return state.currentUser ? `tw_fav_${state.currentUser.key}` : null; }
 function getFavs() {
   const k = favKey();
   if (!k) return [];
-  try { return JSON.parse(localStorage.getItem(k)) || []; }
-  catch { return []; }
+  try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; }
 }
-
 function saveFavs(list) {
   const k = favKey();
   if (!k) return;
   localStorage.setItem(k, JSON.stringify(list));
 }
-
 function toggleFavorite(name) {
   if (!state.currentUser) { toast('请先登录'); return; }
   const list = getFavs();
   const idx = list.indexOf(name);
   if (idx > -1) list.splice(idx, 1); else list.push(name);
-  saveFavs(list);
-  updateFavUI();
-  updateFavButton(name);
+  saveFavs(list); updateFavUI(); updateFavButton(name);
   toast(idx > -1 ? '已取消收藏' : '已收藏');
 }
-
 function updateFavUI() {
   if (!state.currentUser) return;
   $('fav-count').textContent = getFavs().length;
-
   const listDiv = $('favorites-list');
   const favs = getFavs();
   if (favs.length === 0) {
     listDiv.innerHTML = '<div class="empty-state" style="padding:20px;">暂无收藏</div>';
     return;
   }
-
   const items = favs.map(name => tanks.find(t => t.name === name)).filter(Boolean);
   listDiv.innerHTML = items.map(t => `
     <div class="author-card-box" data-tank="${escapeHtml(t.name)}"
@@ -360,11 +498,10 @@ function updateFavUI() {
            onerror="this.src='https://via.placeholder.com/44'">
       <div style="flex:1; min-width:0;">
         <div style="font-weight:600; font-size:13px;">${escapeHtml(t.name)}</div>
-        <div style="font-size:11px; color:var(--text-dim);">${t.tier} · ${t.type}</div>
+        <div style="font-size:11px; color:var(--text-dim);">${escapeHtml(getCardInfoText(t))}</div>
       </div>
     </div>
   `).join('');
-
   listDiv.querySelectorAll('[data-tank]').forEach(el => {
     el.addEventListener('click', () => {
       const t = tanks.find(x => x.name === el.dataset.tank);
@@ -372,7 +509,6 @@ function updateFavUI() {
     });
   });
 }
-
 function updateFavButton(name) {
   const container = $('detail-fav-container');
   if (!container) return;
@@ -385,34 +521,16 @@ function updateFavButton(name) {
   $('btn-favorite').addEventListener('click', () => toggleFavorite(name));
 }
 
-// ==================== 加载动画 ====================
-function simulateLoading() {
-  const bar = $('progress-bar');
-  const text = $('loading-text');
-  const screen = $('loading-screen');
-
-  const steps = [
-    { p: 25, t: '连接服务器…' },
-    { p: 55, t: '加载展品数据…' },
-    { p: 85, t: '渲染界面…' },
-    { p: 100, t: '完成' },
-  ];
-
-  let i = 0;
-  const next = () => {
-    if (i >= steps.length) {
-      setTimeout(() => {
-        screen.classList.add('hidden');
-        setTimeout(() => { screen.style.display = 'none'; }, 400);
-      }, 180);
-      return;
-    }
-    bar.style.width = steps[i].p + '%';
-    text.textContent = steps[i].t;
-    i++;
-    setTimeout(next, 220 + Math.random() * 180);
-  };
-  next();
+// ==================== 全局事件 ====================
+function bindGlobalEvents() {
+  $('search').addEventListener('input', drawTanks);
+  $('category').addEventListener('change', () => { updateFilterOptions(); drawTanks(); });
+  $('nation').addEventListener('change', drawTanks);
+  $('tier-or-era').addEventListener('change', drawTanks);
+  $('type').addEventListener('change', drawTanks);
+  document.addEventListener('dragstart', e => {
+    if (e.target.tagName === 'IMG') e.preventDefault();
+  });
 }
 
 // ==================== Toast ====================
@@ -443,4 +561,488 @@ function toast(msg) {
   toastTimer = setTimeout(() => {
     el.style.opacity = '0';
     el.style.transform = 'translateX(-50%) translateY(20px)';
-  }, 170
+  }, 1800);
+}
+
+// ==================== 图片压缩 ====================
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+function canvasToBlob(canvas, quality) {
+  return new Promise(resolve => {
+    canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
+  });
+}
+async function compressImage(file, opts = {}) {
+  const { maxSide = 1200, targetKB = 35, square = false } = opts;
+  const img = await loadImage(file);
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  let w = img.width, h = img.height;
+  if (square) {
+    const s = Math.min(img.width, img.height);
+    sx = (img.width - s) / 2; sy = (img.height - s) / 2;
+    sw = sh = s; w = h = Math.min(maxSide, s);
+  } else if (Math.max(w, h) > maxSide) {
+    const r = maxSide / Math.max(w, h);
+    w = Math.round(w * r); h = Math.round(h * r);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+
+  let lo = 0.1, hi = 0.92, best = null;
+  for (let i = 0; i < 8; i++) {
+    const q = (lo + hi) / 2;
+    const blob = await canvasToBlob(canvas, q);
+    const kb = blob.size / 1024;
+    if (kb > targetKB) hi = q;
+    else {
+      lo = q; best = blob;
+      if (Math.abs(kb - targetKB) < 3) break;
+    }
+  }
+  if (!best) best = await canvasToBlob(canvas, 0.1);
+  return best;
+}
+
+// ==================== 投稿：坦克 ====================
+let tankSubmission = { files: [], code: '' };
+
+function setupSubmitInputs() {
+  const fileInput = $('sub-imgs');
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files).slice(0, 3);
+      const preview = $('sub-preview');
+      preview.innerHTML = '';
+      files.forEach(f => {
+        const url = URL.createObjectURL(f);
+        const img = document.createElement('img');
+        img.src = url;
+        img.onload = () => URL.revokeObjectURL(url);
+        preview.appendChild(img);
+      });
+      $('sub-imgs-label').textContent = files.length
+        ? `已选 ${files.length} 张（可重新选择）`
+        : '点击选择图片';
+      tankSubmission.files = files;
+    });
+  }
+  const avatarInput = $('reg-avatar');
+  if (avatarInput) {
+    avatarInput.addEventListener('change', () => {
+      const file = avatarInput.files[0];
+      const preview = $('reg-preview');
+      preview.innerHTML = '';
+      if (file) {
+        const url = URL.createObjectURL(file);
+        const img = document.createElement('img');
+        img.src = url;
+        img.onload = () => URL.revokeObjectURL(url);
+        preview.appendChild(img);
+        $('reg-avatar-label').textContent = '已选头像（可重新选择）';
+      } else {
+        $('reg-avatar-label').textContent = '点击选择头像';
+      }
+    });
+  }
+}
+
+// 投稿表单：分类变化后刷新二级选项
+function updateSubmitOptions() {
+  const cat = $('sub-category').value;
+  const nationSel = $('sub-nation');
+  const tierSel = $('sub-tier-or-era');
+  const tierLabel = $('sub-tier-label');
+
+  if (cat === 'WOT') {
+    fillSelect(nationSel, Object.entries(GAME_NATIONS), '请选择国家');
+    fillSelect(tierSel, WOT_TIERS.map(t => [t, t]), '请选择等级');
+    tierLabel.textContent = '等级';
+  } else if (cat === 'WT') {
+    fillSelect(nationSel, Object.entries(GAME_NATIONS), '请选择国家');
+    fillSelect(tierSel, WT_TIERS.map(t => [t, t]), '请选择等级');
+    tierLabel.textContent = '等级';
+  } else if (cat === 'REAL') {
+    fillSelect(nationSel, REAL_NATION_OPTIONS, '请选择国家');
+    fillSelect(tierSel, Object.entries(REAL_ERAS), '请选择年代');
+    tierLabel.textContent = '年代';
+  }
+}
+
+function sanitizeFilename(name) {
+  return String(name).trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'tank';
+}
+
+async function generateTankSubmission() {
+  if (!state.currentUser) { toast('请先登录'); return; }
+  const name = $('sub-name').value.trim();
+  if (!name) { toast('请填写坦克名称'); return; }
+  if (tankSubmission.files.length === 0) { toast('请至少上传一张图片'); return; }
+
+  const cat = $('sub-category').value;
+  const nation = $('sub-nation').value;
+  const tierOrEra = $('sub-tier-or-era').value;
+  const type = $('sub-type').value;
+
+  if (!nation) { toast('请选择国家'); return; }
+  if (!tierOrEra) { toast(cat === 'REAL' ? '请选择年代' : '请选择等级'); return; }
+
+  const progressTrack = $('sub-progress-track');
+  const progressFill = $('sub-progress-fill');
+  const progressText = $('sub-progress-text');
+  progressTrack.style.display = 'block';
+  progressText.style.display = 'block';
+  $('sub-result').style.display = 'none';
+
+  const total = tankSubmission.files.length;
+  const outFiles = [];
+
+  for (let i = 0; i < total; i++) {
+    progressText.textContent = `压缩第 ${i + 1} / ${total} 张图片…`;
+    progressFill.style.width = `${(i / total) * 100}%`;
+    const blob = await compressImage(tankSubmission.files[i], { maxSide: 1200, targetKB: 35 });
+    const fname = `${sanitizeFilename(name)}_${i + 1}.jpg`;
+    outFiles.push(new File([blob], fname, { type: 'image/jpeg' }));
+  }
+  progressFill.style.width = '100%';
+  progressText.textContent = '完成';
+
+  const imgsList = outFiles.map(f => `"${f.name}"`).join(',');
+  const authorId = state.currentUser.key;
+  const text = $('sub-text').value.trim().replace(/\n/g, '\\n').replace(/"/g, '\\"');
+
+  let code;
+  if (cat === 'REAL') {
+    code = `{ category:"REAL", name:"${name}", era:"${tierOrEra}", nation:"${nation}", type:"${type}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
+  } else {
+    code = `{ category:"${cat}", name:"${name}", nation:"${nation}", tier:"${tierOrEra}", type:"${type}", authorId:"${authorId}", imgs:[${imgsList}], text:"${text}" }`;
+  }
+
+  tankSubmission.code = code;
+  tankSubmission.outFiles = outFiles;
+
+  $('sub-code').textContent = code;
+  $('sub-imgs-info').textContent = `已生成 ${outFiles.length} 张图片：${outFiles.map(f => f.name).join('、')}`;
+  $('sub-result').style.display = 'block';
+
+  setTimeout(() => {
+    progressTrack.style.display = 'none';
+    progressText.style.display = 'none';
+    progressFill.style.width = '0%';
+  }, 800);
+}
+
+async function shareTankSubmission() {
+  if (!tankSubmission.outFiles || tankSubmission.outFiles.length === 0) {
+    toast('请先生成投稿'); return;
+  }
+  const files = tankSubmission.outFiles;
+  const text = tankSubmission.code;
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, text, title: 'TanksWall 坦克投稿' });
+      toast('已发送');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  toast('当前浏览器不支持直接分享，改为下载图片 + 复制文本');
+  files.forEach(f => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  copyText(text);
+}
+
+function copyTankCode() {
+  if (!tankSubmission.code) { toast('请先生成投稿'); return; }
+  copyText(tankSubmission.code);
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => toast('已复制'),
+      () => fallbackCopy(text)
+    );
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); toast('已复制'); }
+  catch { toast('复制失败，请长按选择'); }
+  document.body.removeChild(ta);
+}
+
+// ==================== 投稿：注册 ====================
+let regSubmission = { file: null, code: '' };
+
+async function generateRegister() {
+  const username = $('reg-username').value.trim();
+  const password = $('reg-password').value.trim();
+  const nickname = $('reg-nickname').value.trim();
+  const avatar = $('reg-avatar').files[0];
+  if (!username || !password || !nickname) { toast('请填写完整信息'); return; }
+  if (!avatar) { toast('请上传头像'); return; }
+
+  const progressTrack = $('reg-progress-track');
+  const progressFill = $('reg-progress-fill');
+  const progressText = $('reg-progress-text');
+  progressTrack.style.display = 'block';
+  progressText.style.display = 'block';
+  $('reg-result').style.display = 'none';
+
+  progressText.textContent = '压缩头像…';
+  progressFill.style.width = '40%';
+  const blob = await compressImage(avatar, { maxSide: 400, targetKB: 30, square: true });
+  progressFill.style.width = '85%';
+
+  const fname = `${sanitizeFilename(username)}_avatar.jpg`;
+  const file = new File([blob], fname, { type: 'image/jpeg' });
+
+  progressFill.style.width = '100%';
+  progressText.textContent = '完成';
+
+  const code = `"${username}": { username:"${username}", password:"${password}", role:"member", nickname:"${nickname}" }`;
+  regSubmission.file = file;
+  regSubmission.code = code;
+  $('reg-code').textContent = code;
+  $('reg-result').style.display = 'block';
+
+  setTimeout(() => {
+    progressTrack.style.display = 'none';
+    progressText.style.display = 'none';
+    progressFill.style.width = '0%';
+  }, 800);
+}
+
+async function shareRegister() {
+  if (!regSubmission.file) { toast('请先生成注册信息'); return; }
+  const files = [regSubmission.file];
+  const text = regSubmission.code;
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, text, title: 'TanksWall 账号注册' });
+      toast('已发送');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  toast('当前浏览器不支持直接分享，改为下载 + 复制');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(regSubmission.file);
+  a.download = regSubmission.file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  copyText(text);
+}
+function copyRegCode() {
+  if (!regSubmission.code) { toast('请先生成注册信息'); return; }
+  copyText(regSubmission.code);
+}
+
+// ==================== 工具：装甲 ====================
+function calculateArmor() {
+  const act = parseFloat($('calc-act').value);
+  const ang = parseFloat($('calc-ang').value);
+  const eff = parseFloat($('calc-eff').value);
+  if (!isNaN(act) && !isNaN(ang) && isNaN(eff)) {
+    $('calc-eff').value = (act / Math.cos(ang * Math.PI / 180)).toFixed(2);
+  } else if (!isNaN(eff) && !isNaN(ang) && isNaN(act)) {
+    $('calc-act').value = (eff * Math.cos(ang * Math.PI / 180)).toFixed(2);
+  } else if (!isNaN(act) && !isNaN(eff) && isNaN(ang)) {
+    if (act > eff) { toast('实际厚度不能大于等效厚度'); return; }
+    $('calc-ang').value = (Math.acos(act / eff) * 180 / Math.PI).toFixed(2);
+  } else {
+    toast('请填写且仅填写其中两项');
+  }
+}
+function clearCalc() {
+  $('calc-act').value = ''; $('calc-ang').value = ''; $('calc-eff').value = '';
+}
+
+// ==================== 工具：推重比 ====================
+function calculatePTW() {
+  const w = parseFloat($('calc-weight').value);
+  const hp = parseFloat($('calc-hp').value);
+  const ptw = parseFloat($('calc-ptw').value);
+  if (!isNaN(w) && !isNaN(hp) && isNaN(ptw)) $('calc-ptw').value = (hp / w).toFixed(2);
+  else if (!isNaN(w) && !isNaN(ptw) && isNaN(hp)) $('calc-hp').value = (w * ptw).toFixed(2);
+  else if (!isNaN(hp) && !isNaN(ptw) && isNaN(w)) $('calc-weight').value = (hp / ptw).toFixed(2);
+  else toast('请填写且仅填写其中两项');
+}
+function clearPTW() {
+  $('calc-weight').value = ''; $('calc-hp').value = ''; $('calc-ptw').value = '';
+}
+
+// ==================== 工具：转向 ====================
+function calculateSteering() {
+  const wb = parseFloat($('calc-wheelbase').value);
+  const ang = parseFloat($('calc-steer-ang').value);
+  const rad = parseFloat($('calc-steer-rad').value);
+  if (!isNaN(wb) && !isNaN(ang) && isNaN(rad)) {
+    $('calc-steer-rad').value = (wb / Math.sin(ang * Math.PI / 180)).toFixed(2);
+  } else if (!isNaN(wb) && !isNaN(rad) && isNaN(ang)) {
+    if (wb > rad) { toast('轴距不能大于转向半径'); return; }
+    $('calc-steer-ang').value = (Math.asin(wb / rad) * 180 / Math.PI).toFixed(2);
+  } else if (!isNaN(ang) && !isNaN(rad) && isNaN(wb)) {
+    $('calc-wheelbase').value = (rad * Math.sin(ang * Math.PI / 180)).toFixed(2);
+  } else {
+    toast('请填写且仅填写其中两项');
+  }
+}
+function clearSteering() {
+  $('calc-wheelbase').value = ''; $('calc-steer-ang').value = ''; $('calc-steer-rad').value = '';
+}
+
+// ==================== 工具：回转时间 ====================
+function calculateTurnTime() {
+  const rad = parseFloat($('calc-circle-rad').value);
+  const spd = parseFloat($('calc-speed').value);
+  const time = parseFloat($('calc-turn-time').value);
+  if (!isNaN(rad) && !isNaN(spd) && isNaN(time)) {
+    $('calc-turn-time').value = (2 * Math.PI * rad / (spd / 3.6)).toFixed(2);
+  } else if (!isNaN(rad) && !isNaN(time) && isNaN(spd)) {
+    $('calc-speed').value = ((2 * Math.PI * rad / time) * 3.6).toFixed(2);
+  } else if (!isNaN(spd) && !isNaN(time) && isNaN(rad)) {
+    $('calc-circle-rad').value = (((spd / 3.6) * time) / (2 * Math.PI)).toFixed(2);
+  } else {
+    toast('请填写且仅填写其中两项');
+  }
+}
+function clearTurnTime() {
+  $('calc-circle-rad').value = ''; $('calc-speed').value = ''; $('calc-turn-time').value = '';
+}
+
+// ==================== 工具：DPM ====================
+function toggleDpmMode() {
+  const isAuto = $('calc-dpm-mode').checked;
+  $('calc-item-reload').style.display = isAuto ? 'none' : 'flex';
+  document.querySelectorAll('.dpm-auto-item').forEach(item => {
+    item.style.display = isAuto ? 'flex' : 'none';
+  });
+  clearFirepower();
+}
+function calculateFirepower() {
+  const isAuto = $('calc-dpm-mode').checked;
+  let D = parseFloat($('calc-dmg').value);
+  let R = parseFloat($('calc-rpm').value);
+  let P = parseFloat($('calc-dpm').value);
+  if (!isAuto) {
+    let T = parseFloat($('calc-reload').value);
+    if (!isNaN(R) && isNaN(T)) T = 60 / R;
+    if (!isNaN(T) && isNaN(R)) R = 60 / T;
+    if (!isNaN(D) && !isNaN(R) && isNaN(P)) P = D * R;
+    else if (!isNaN(P) && !isNaN(R) && isNaN(D)) D = P / R;
+    else if (!isNaN(P) && !isNaN(D) && isNaN(R)) R = P / D;
+    if (!isNaN(D)) $('calc-dmg').value = Math.round(D);
+    if (!isNaN(R)) $('calc-rpm').value = R.toFixed(2);
+    if (!isNaN(P)) $('calc-dpm').value = Math.round(P);
+    if (!isNaN(T)) $('calc-reload').value = T.toFixed(2);
+    return;
+  }
+  let C = parseFloat($('calc-clip').value);
+  let S = parseFloat($('calc-short').value);
+  let L = parseFloat($('calc-long').value);
+  if (!isNaN(D) && !isNaN(C) && !isNaN(S) && !isNaN(L) && isNaN(P)) {
+    const cycle = L + (C - 1) * S;
+    P = D * C * 60 / cycle;
+    R = C * 60 / cycle;
+  }
+  if (!isNaN(D)) $('calc-dmg').value = Math.round(D);
+  if (!isNaN(C)) $('calc-clip').value = Math.round(C);
+  if (!isNaN(S)) $('calc-short').value = S.toFixed(2);
+  if (!isNaN(L)) $('calc-long').value = L.toFixed(2);
+  if (!isNaN(R)) $('calc-rpm').value = R.toFixed(2);
+  if (!isNaN(P)) $('calc-dpm').value = Math.round(P);
+}
+function clearFirepower() {
+  ['calc-dmg', 'calc-reload', 'calc-clip', 'calc-short', 'calc-long', 'calc-rpm', 'calc-dpm']
+    .forEach(id => { const el = $(id); if (el) el.value = ''; });
+}
+
+// ==================== 工具：点亮 ====================
+let manualCamoOverride = false;
+function onStatusChange() {
+  const status = $('calc-status').value;
+  $('still-camo-row').style.display = status === 'still' ? 'flex' : 'none';
+  $('moving-camo-row').style.display = status === 'moving' ? 'flex' : 'none';
+  manualCamoOverride = false;
+  $('calc-final-camo').value = '';
+  autoCalcFinalCamo();
+}
+function onFinalCamoManual() { manualCamoOverride = true; }
+function autoCalcFinalCamo() {
+  if (manualCamoOverride) return;
+  const status = $('calc-status').value;
+  let camo = status === 'still'
+    ? parseFloat($('calc-base-camo').value)
+    : parseFloat($('calc-move-camo').value);
+  if (isNaN(camo)) { $('calc-final-camo').value = ''; return; }
+  const bushType = $('calc-bush').value;
+  let bushBonus = bushType === 'sparse' ? 25 : bushType === 'single' ? 50 : bushType === 'double' ? 80 : 0;
+  if ($('calc-high-optics').checked && bushBonus > 0) bushBonus = Math.max(0, bushBonus - 15);
+  if ($('calc-camo-paint').checked) camo += 4;
+  camo += (parseFloat($('calc-exhaust').value) || 0);
+  camo += bushBonus;
+  camo = Math.min(100, Math.max(0, camo));
+  if ($('calc-cvs').checked) camo *= 0.85;
+  $('calc-final-camo').value = camo.toFixed(1);
+}
+function setupSpottingAutoCalc() {
+  ['calc-base-camo', 'calc-move-camo', 'calc-status', 'calc-bush',
+   'calc-camo-paint', 'calc-exhaust', 'calc-cvs', 'calc-high-optics'].forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.addEventListener('input', autoCalcFinalCamo);
+      el.addEventListener('change', autoCalcFinalCamo);
+    }
+  });
+}
+function calculateSpotting() {
+  const finalCamo = parseFloat($('calc-final-camo').value);
+  const viewRange = parseFloat($('calc-view-range').value);
+  if (isNaN(finalCamo) || isNaN(viewRange)) { toast('请填写综合隐蔽值和敌方视野'); return; }
+  if (viewRange <= 50) { $('spotting-result').textContent = '敌方视野必须大于 50 米'; return; }
+  let L = viewRange - (viewRange - 50) * (finalCamo / 100);
+  L = Math.min(445, Math.max(50, L));
+  $('spotting-result').textContent = `点亮距离：${L.toFixed(1)} 米`;
+}
+function clearSpotting() {
+  $('calc-base-camo').value = '';
+  $('calc-move-camo').value = '';
+  $('calc-status').value = 'still';
+  $('calc-bush').value = 'none';
+  $('calc-camo-paint').checked = false;
+  $('calc-exhaust').value = '0';
+  $('calc-cvs').checked = false;
+  $('calc-high-optics').checked = false;
+  $('calc-final-camo').value = '';
+  $('calc-view-range').value = '';
+  $('spotting-result').textContent = '';
+  $('still-camo-row').style.display = 'flex';
+  $('moving-camo-row').style.display = 'none';
+  manualCamoOverride = false;
+}
