@@ -11,6 +11,8 @@ const TYPE_ICONS = {
              <line x1="18" y1="4" x2="14" y2="20"/>
            </g>`,
   '轻坦': `<polygon points="12,3 21,12 12,21 3,12" fill="currentColor"/>`,
+  '反坦': `<polygon points="2,3 22,3 12,21" fill="currentColor"/>`,
+  '火炮': `<rect x="4" y="4" width="16" height="16" rx="1.5" fill="currentColor"/>`,
   '自行火炮/歼击车': `<polygon points="2,3 22,3 12,21" fill="currentColor"/>`,
   '防空车': `<polygon points="12,3 22,21 2,21" fill="currentColor"/>`,
   '工程车': `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="currentColor"/>`,
@@ -20,6 +22,10 @@ const MERGED_TD_SPG = '自行火炮/歼击车';
 const TD_SPG_ALIASES = ['反坦', '火炮', MERGED_TD_SPG];
 function isTDorSPG(type) { return TD_SPG_ALIASES.includes(type); }
 function displayType(type) { return isTDorSPG(type) ? MERGED_TD_SPG : type; }
+function displayTypeFor(t) {
+  if (!t.category || t.category === 'WOT') return t.type;
+  return displayType(t.type);
+}
 
 const GAME_NATIONS = {
   FR: 'F系', DE: 'D系', US: 'M系', RU: 'S系', CN: 'C系', SE: 'V系',
@@ -187,9 +193,13 @@ function updateFilterOptions() {
   const prevTier = tierSel.value;
   const prevType = typeSel.value;
 
-  const typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG];
-  if (cat !== 'WOT') typeOpts.push('防空车');
-  typeOpts.push('工程车');
+  // 类型选项：WOT 分开反坦/火炮，其他分类合并
+  let typeOpts;
+  if (cat === 'WOT') {
+    typeOpts = ['重坦', '中坦', '轻坦', '反坦', '火炮', '工程车'];
+  } else {
+    typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG, '防空车', '工程车'];
+  }
   let typeHtml = '<option value="">全部类型</option>';
   typeOpts.forEach(t => { typeHtml += `<option>${t}</option>`; });
   typeSel.innerHTML = typeHtml;
@@ -326,7 +336,7 @@ function drawTanks() {
     } else {
       card.innerHTML = `
         <div class="title-container">${icon}<span>${escapeHtml(t.name)}</span></div>
-        <span class="type-badge">${escapeHtml(getCardInfoText(t))} · ${displayType(t.type)}</span>
+        <span class="type-badge">${escapeHtml(getCardInfoText(t))} · ${displayTypeFor(t)}</span>
       `;
     }
     card.addEventListener('click', () => showTankDetail(t));
@@ -397,7 +407,7 @@ function showTankDetail(t) {
     metaHtml += `<span class="meta-pill">${escapeHtml(t.tier || '')} 级</span>`;
     metaHtml += `<span class="meta-pill">${escapeHtml(GAME_NATIONS[t.nation] || t.nation || '')}</span>`;
   }
-  metaHtml += `<span class="meta-pill">${displayType(t.type)}</span>`;
+  metaHtml += `<span class="meta-pill">${displayTypeFor(t)}</span>`;
   metaHtml += `<span class="meta-pill">${CATEGORY_LABELS[cat]}</span>`;
   $('detail-meta').innerHTML = metaHtml;
 
@@ -684,9 +694,13 @@ function updateSubmitOptions() {
   const tierLabel = $('sub-tier-label');
   const typeSel = $('sub-type');
 
-  const typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG];
-  if (cat !== 'WOT') typeOpts.push('防空车');
-  typeOpts.push('工程车');
+  // 类型选项：WOT 分开反坦/火炮，其他分类合并
+  let typeOpts;
+  if (cat === 'WOT') {
+    typeOpts = ['重坦', '中坦', '轻坦', '反坦', '火炮', '工程车'];
+  } else {
+    typeOpts = ['重坦', '中坦', '轻坦', MERGED_TD_SPG, '防空车', '工程车'];
+  }
   let typeHtml = '';
   typeOpts.forEach(t => { typeHtml += `<option>${t}</option>`; });
   typeSel.innerHTML = typeHtml;
@@ -747,7 +761,7 @@ async function generateTankSubmission() {
   const imgsList = outFiles.map(f => `"${f.name}"`).join(',');
   const authorId = state.currentUser.key;
   const text = $('sub-text').value.trim().replace(/\n/g, '\\n').replace(/"/g, '\\"');
-  const typeValue = displayType(type);
+  const typeValue = type;
 
   let code;
   if (cat === 'REAL') {
