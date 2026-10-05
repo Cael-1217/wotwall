@@ -44,20 +44,12 @@ const tanks = [
     { name:"FSV18", nation:"UK", tier:"VI", type:"中坦", authorId:"cael", imgs:["M18-6x6.JPG"], text:"FSV18\nY系VI级全能型MT" },
     { name:"AVK66 Utkas2 15cm", nation:"SE", tier:"VIII", type:"火炮", authorId:"cael", imgs:["AVK66.JPG"], text:"AVK66 Utkas2 15cm\nV系VIII级火炮" },
     { name:"AVK27 Utkas1 12cm", nation:"SE", tier:"VII", type:"火炮", authorId:"cael", imgs:["AVK27.JPG"], text:"AVK27 Utkas1 12cm\nV系VII级火炮" },
-    { name:"虎王 75WT", nation:"DE", tier:"VIII", type:"重坦", authorId:"445", imgs:["75WT.JPG"], text:"未定义" },
-    { name:"V128FH中坦", nation:"DE", tier:"VIII", type:"中坦", authorId:"445", imgs:["V128.JPG"], text:"未定义" },
-    { name:"猎鼠虎", nation:"DE", tier:"IX", type:"反坦", authorId:"445", imgs:["JMT.JPG"], text:"未定义" },
-    { name:"ADGZ 75支援型", nation:"DE", tier:"VII", type:"轻坦", authorId:"445", imgs:["ADGZ75.JPG"], text:"未定义" },
     { name:"IS-3 85m", nation:"RU", tier:"VII", type:"重坦", authorId:"xian", imgs:["385M.JPG"], text:"俯角-15，装填5秒，20度方向机" },
     { name:"T58E2", nation:"US", tier:"XI", type:"重坦", authorId:"xian", imgs:["T58.JPG"], text:"T58E2(甲弹对抗型)，70倍155炮，2.6秒一发，6发待发，方向机37度/s。\nAPCBC初速1200，在1500米距离穿深420，装药700g，65度斜穿180。\nHEAT静破406，动破380。\nHESH装药16Kg，203穿。\n首上65度125箭簇形，首下55度125。炮盾320/20度弧形，炮塔正面角度加大，炮塔座连接处加上了一块可活动250mm装甲" },
-    { name:"IS-152", nation:"RU", tier:"VIII", type:"反坦", authorId:"xian", imgs:["IS152.JPG"], text:"未定义" },
-    { name:"ISU-100e", nation:"RU", tier:"VII", type:"反坦", authorId:"xian", imgs:["ISU100E.JPG"], text:"未定义" },
-    { name:"Tiger II C", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["E75S.JPG"], text:"未定义" },
-    { name:"Panzer II", nation:"DE", tier:"IX", type:"中坦", authorId:"xian", imgs:["E50S.JPG"], text:"未定义" },
     { name:"IS-6 AAS-OF", nation:"RU", tier:"VIII", type:"重坦", authorId:"xian", imgs:["IS6AAS.JPG"], text:'IS-6 AAS-OF(甲弹对抗特化改进方案)。\n车体首上69度105mm箭簇型，首下55度125mm，侧面上半50度105mm，下半81度75mm/垂直110mm，后方60度75mm。\n炮塔正面255mm～200mm/35～55度，侧面200mm/38度，后方105mm/25度，炮盾220+100mm(320mm)，车长塔正面150mm/40度。\n主炮为62倍D35T型122炮，半自动装填，5～13倍放大，俯角-5，仰角25，方向机12度/s，30km时速以下时低速垂稳生效。\n全重59.8吨，功重比12.71，极速43，倒车16。' },
     { name:"T-未命名原型", nation:"US", tier:"XI", type:"重坦", authorId:"tiger", imgs:["T.PNG"], text:"未完工" },
     { name:"60式重坦", nation:"CN", tier:"X", type:"重坦", authorId:"xian", imgs:["CN7.JPG"], text:'Wz111太弱了，给她小小加强一下:\n60式重坦(🕰️风味is7)，权重7.7金币车。\n首上165mm/60度，首下170mm55度，侧面150mm/50度。\n炮塔正面303，等效380～490，侧面165mm42度，炮盾360～200，等效402～460。\n70倍130炮，全口径装药弹100米穿深420，65度斜穿152，177.7g装药，高爆3.2Kg装药，破甲动破460mm，装药3.1Kg，可带32发炮弹。\n15秒装填，12度方向机，3～12倍炮镜，有垂稳、光学测距仪，2只12.7与2只7.62机枪。\n前进37倒车12，功重比12。\n依旧大技霸最新力作，依旧俺寻思这车能造得又大又猛🤓' },
-    { name:"IS-4锥膛炮", nation:"RU", tier:"X", type:"重坦", authorId:"xian", imgs:["IS4WDF.JPG"], text:"大技霸最新力作:1400倍径5.56mm锥膛炮is4" },
+    { category:"WOT", name:"曼伽特工程 / projet mangat", nation:"FR", tier:"XI", type:"中坦", authorId:"FPE", imgs:["projet_mangat_1.jpg"], text:"简介：法系缪拉工程线11级线车曼伽特工程（projet mangat）全能型中型坦克，坦克介绍：双发125mm弹夹炮拥有非常出色的爆发火力，对比缪拉工程拥有更坚固的炮塔装甲，火控，机动都有特性化提升，使其更具进攻性。特殊技能“模块映照器”火力方面搭载一门125mm P.M pr63主炮，伤害430/380/510  穿深261/348/65  装填时间16.87秒  短装填2秒  弹夹容量2发  每分钟射速  6.36发  DPM2798  俯仰角-10/15  精度0.33 三扩0.11/0.11/0.5 瞄准时间2.3秒 弹种AP/HEAT/HE    生存性方面，血量2150  车体装甲60/50/30  炮塔装甲300/80/35  机动性上：全重42.1吨  发动机马力高达960匹  基础功重比23.2  速度65/20  车体转速54  炮塔转速37.9  地形系数  1/1.22/1.48  隐蔽：23.76/17.77/4.99/3.33 视野320  特殊技能“模块映照器”可在花费一定时间瞄准的情况下透视敌方坦克模块 住:数据套用WOTB版本" }，
     { name:"爆改版虎王", nation:"DE", tier:"IX", type:"重坦", authorId:"xian", imgs:["TKWDF.JPG"], text:"爆改哈基虎，首上60度150，炮塔正面35度200，炮塔后方40度110，炮塔侧面105，主炮为L70/128炮" },
     { name:"EBG-60", nation:"FR", tier:"XI", type:"工程车", authorId:"cael", imgs:["EBG-60.JPG"], text:"F系XI级工程车" }
 ];
