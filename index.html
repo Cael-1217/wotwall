@@ -60,7 +60,6 @@
       <div class="empty-hint">试试清除筛选或更换搜索词</div>
       <button class="btn btn-primary" style="max-width:160px; margin:16px auto 0;" onclick="resetAllFilters()">清除筛选</button>
     </div>
-    <!-- 列表底部装饰剪影 -->
     <div id="tank-end-deco" class="tank-end-deco" style="display:none;">
       <svg viewBox="0 0 120 80" aria-hidden="true">
         <rect x="14" y="42" width="92" height="18" rx="4"/>
@@ -434,6 +433,15 @@
     <polyline points="6 14 12 8 18 14"/>
   </svg>
 </button>
+
+<!-- 彩蛋：破坏模式 -->
+<button id="destroy-egg-btn" class="destroy-egg-btn" onclick="enterDestroyMode()" aria-label="破坏模式">破 坏</button>
+
+<div id="destroy-bar" class="destroy-bar">
+  <button onclick="exitDestroyMode()">← 退出破坏模式</button>
+</div>
+
+<div id="destroy-layer" class="destroy-layer"></div>
 
 <script src="data.js"></script>
 <script src="changelog.js"></script>
