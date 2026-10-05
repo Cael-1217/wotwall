@@ -16,13 +16,12 @@
 <header>
   <div class="brand">
     <h1>Tanks<span>Wall</span></h1>
-    <div class="ver">v2.3</div>
+    <div class="ver">v2.3.1</div>
   </div>
   <nav class="tabs" id="tabs">
     <button class="tab-btn active" data-page="tank-page">展品</button>
     <button class="tab-btn" data-page="author-page">作者</button>
     <button class="tab-btn" data-page="tools-page">工具</button>
-    <button class="tab-btn" data-page="stats-page">统计</button>
     <button class="tab-btn" data-page="submit-page">投稿</button>
     <button class="tab-btn" data-page="user-page">我的</button>
     <button class="tab-btn" data-page="settings-page">设置</button>
@@ -176,39 +175,6 @@
     </div>
   </div>
 
-  <div id="stats-page" class="page-content">
-    <div class="stat-overview">
-      <div class="stat-big">
-        <div class="stat-big-num" id="stat-total">0</div>
-        <div class="stat-big-label">展品总数</div>
-      </div>
-      <div class="stat-big">
-        <div class="stat-big-num" id="stat-authors">0</div>
-        <div class="stat-big-label">作者</div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <h3>分类分布</h3>
-      <div id="stat-category" class="stat-bars"></div>
-    </div>
-
-    <div class="tool-card">
-      <h3>国家分布</h3>
-      <div id="stat-nation" class="stat-bars"></div>
-    </div>
-
-    <div class="tool-card">
-      <h3>类型分布</h3>
-      <div id="stat-type" class="stat-bars"></div>
-    </div>
-
-    <div class="tool-card">
-      <h3>作者作品数</h3>
-      <div id="stat-author" class="stat-bars"></div>
-    </div>
-  </div>
-
   <div id="submit-page" class="page-content">
     <div id="submit-need-login" style="display:none;">
       <div class="tool-card" style="text-align:center;">
@@ -335,20 +301,20 @@
       <div class="setting-item">
         <label>外观</label>
         <div class="segmented" id="theme-seg">
-          <button type="button" data-theme="dark">深色</button>
-          <button type="button" data-theme="light">浅色</button>
-          <button type="button" data-theme="auto">跟随系统</button>
+          <button type="button" data-theme="dark" onclick="setTheme('dark')">深色</button>
+          <button type="button" data-theme="light" onclick="setTheme('light')">浅色</button>
+          <button type="button" data-theme="auto" onclick="setTheme('auto')">跟随系统</button>
         </div>
       </div>
-      <div class="setting-item">
+      <div class="setting-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
         <label>主题色</label>
         <div class="accent-picker" id="accent-picker">
-          <button type="button" data-accent="gold" style="background:#c9a860" title="金"></button>
-          <button type="button" data-accent="blue" style="background:#4a90e2" title="蓝"></button>
-          <button type="button" data-accent="green" style="background:#5aa860" title="绿"></button>
+          <button type="button" data-accent="gold"   style="background:#c9a860" title="金"></button>
+          <button type="button" data-accent="blue"   style="background:#4a90e2" title="蓝"></button>
+          <button type="button" data-accent="green"  style="background:#5aa860" title="绿"></button>
           <button type="button" data-accent="purple" style="background:#a06ac0" title="紫"></button>
-          <button type="button" data-accent="red" style="background:#c05a5a" title="红"></button>
-          <button type="button" data-accent="gray" style="background:#8a8a92" title="灰"></button>
+          <button type="button" data-accent="red"    style="background:#c05a5a" title="红"></button>
+          <button type="button" data-accent="gray"   style="background:#8a8a92" title="灰"></button>
         </div>
       </div>
       <div class="setting-item">
@@ -368,13 +334,13 @@
     </div>
 
     <div class="setting-group">
-      <div class="setting-item" onclick="openChangelog()" style="cursor:pointer;">
+      <div class="setting-item" id="changelog-entry" style="cursor:pointer;" onclick="openChangelog()">
         <label>更新日志</label>
         <span style="color:var(--text-dim); font-size:13px;">查看 →</span>
       </div>
       <div class="setting-item">
         <label>版本</label>
-        <span style="font-family:ui-monospace,monospace; font-size:13px; color:var(--text-dim);">v2.3.0</span>
+        <span style="font-family:ui-monospace,monospace; font-size:13px; color:var(--text-dim);">v2.3.1</span>
       </div>
     </div>
 
@@ -389,11 +355,6 @@
 <div id="detail">
   <div class="detail-header">
     <button class="back" onclick="closeDetail()">← 返回</button>
-    <div class="detail-nav">
-      <span class="detail-pos" id="detail-pos"></span>
-      <button class="nav-btn" id="detail-prev" title="上一个">‹</button>
-      <button class="nav-btn" id="detail-next" title="下一个">›</button>
-    </div>
   </div>
   <div class="gallery-wrap">
     <div id="gallery"></div>
@@ -436,6 +397,18 @@
   <div class="lb-counter" id="lb-counter"></div>
 </div>
 
+<!-- 更新日志：右下角浮窗 -->
+<div id="changelog-toast" class="cl-toast">
+  <div class="cl-toast-header">
+    <span class="cl-toast-badge">更新</span>
+    <span class="cl-toast-version" id="cl-toast-version"></span>
+    <button class="cl-toast-close" onclick="dismissChangelogToast()">×</button>
+  </div>
+  <div class="cl-toast-body" id="cl-toast-body"></div>
+  <button class="cl-toast-btn" onclick="openChangelog()">查看完整日志</button>
+</div>
+
+<!-- 更新日志：完整弹窗 -->
 <div id="changelog-modal" class="modal">
   <div class="modal-box">
     <div class="modal-header">

@@ -90,7 +90,6 @@ const state = {
   pageAnimEnabled: true,
   layout: 'grid',
   currentList: [],
-  currentIndex: -1,
   currentTank: null,
   lightboxIdx: 0,
   lightboxImgs: [],
@@ -114,19 +113,21 @@ const $ = id => document.getElementById(id);
   updateSubmitOptions();
   loadDraft();
   enhanceAllSelects();
-  renderStats();
   renderRecent();
   startLoadingScreen();
   setupAuthorCardClicks();
   setupShareCard();
-  setupDetailNav();
   setupLightbox();
   setupBackToTop();
   setupKeyboard();
+  if (typeof setupChangelogUI === 'function') setupChangelogUI();
   checkHash();
-  // 首次更新日志
+
+  // 新版本首次打开 → 右下角浮窗
   if (typeof shouldShowChangelog === 'function' && shouldShowChangelog()) {
-    setTimeout(() => { if (typeof openChangelog === 'function') openChangelog(); }, 1200);
+    setTimeout(() => {
+      if (typeof showChangelogToast === 'function') showChangelogToast();
+    }, 1500);
   }
 })();
 
@@ -177,7 +178,6 @@ function applyTheme(mode) {
     isLight = mode === 'light';
   }
   document.documentElement.classList.toggle('light', isLight);
-  // 主题切换后重算主题色
   applyAccentFromStorage();
 }
 function applyThemeFromStorage() {
@@ -210,15 +210,20 @@ function loadSettings() {
     $('anim-toggle').checked = false;
   }
   const seg = $('theme-seg');
-  if (seg) {
+  if (seg && seg.dataset.bound !== '1') {
+    seg.dataset.bound = '1';
     seg.querySelectorAll('button').forEach(b => {
       b.addEventListener('click', () => setTheme(b.dataset.theme));
     });
   }
   const accentPicker = $('accent-picker');
-  if (accentPicker) {
-    accentPicker.querySelectorAll('button').forEach(b => {
-      b.addEventListener('click', () => setAccent(b.dataset.accent));
+  if (accentPicker && accentPicker.dataset.bound !== '1') {
+    accentPicker.dataset.bound = '1';
+    accentPicker.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-accent]');
+      if (!btn) return;
+      e.stopPropagation();
+      setAccent(btn.dataset.accent);
     });
     applyAccentFromStorage();
   }
@@ -258,7 +263,6 @@ function switchPage(pageId) {
     renderRecent();
   }
   if (pageId === 'submit-page') updateSubmitVisibility();
-  if (pageId === 'stats-page') renderStats();
 }
 
 // ==================== 筛选栏 ====================
@@ -524,11 +528,6 @@ function showTankDetail(t) {
   state.currentTank = t;
   window.__currentTank = t;
 
-  // 更新当前位置索引（基于当前列表）
-  const list = state.currentList.length ? state.currentList : tanks;
-  const idx = list.findIndex(x => x.name === t.name);
-  state.currentIndex = idx;
-
   $('dtitle').textContent = t.name;
   $('desc').textContent = t.text || '暂无简介';
 
@@ -558,14 +557,10 @@ function showTankDetail(t) {
   gallery.querySelectorAll('.gallery-img').forEach(fadeInImg);
   gallery.scrollLeft = 0;
 
-  // 多图指示器
   renderGalleryDots(t.imgs.length, 0);
   gallery.removeEventListener('scroll', updateGalleryDots);
   gallery.addEventListener('scroll', updateGalleryDots, { passive: true });
   gallery.dataset.imgCount = t.imgs.length;
-
-  // 浏览位置
-  updateDetailPos();
 
   const tankAuthor = authors[t.authorId] || authors['cael'];
   const authorZone = $('detail-author-zone');
@@ -582,7 +577,6 @@ function showTankDetail(t) {
     showAuthorDetail(t.authorId);
   });
 
-  // 相关推荐
   renderRelated(t);
 
   updateFavButton(t.name);
@@ -590,9 +584,7 @@ function showTankDetail(t) {
   detail.scrollTop = 0;
   document.body.style.overflow = 'hidden';
 
-  // 记录最近浏览
   addRecentView(t.name);
-  // 更新 hash
   window.location.hash = `tank=${encodeURIComponent(t.name)}`;
 }
 function closeDetail() {
@@ -600,37 +592,9 @@ function closeDetail() {
   document.body.style.overflow = '';
   state.currentTank = null;
   window.__currentTank = null;
-  // 清除 hash
   if (window.location.hash.startsWith('#tank=')) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
-}
-
-function updateDetailPos() {
-  const el = $('detail-pos');
-  if (!el) return;
-  const list = state.currentList.length ? state.currentList : tanks;
-  const idx = state.currentIndex;
-  if (idx >= 0 && idx < list.length) {
-    el.textContent = `${idx + 1} / ${list.length}`;
-  } else {
-    el.textContent = '';
-  }
-  const prevBtn = $('detail-prev');
-  const nextBtn = $('detail-next');
-  if (prevBtn) prevBtn.disabled = idx <= 0;
-  if (nextBtn) nextBtn.disabled = idx < 0 || idx >= list.length - 1;
-}
-
-function setupDetailNav() {
-  $('detail-prev').addEventListener('click', () => navDetail(-1));
-  $('detail-next').addEventListener('click', () => navDetail(1));
-}
-function navDetail(delta) {
-  const list = state.currentList.length ? state.currentList : tanks;
-  const newIdx = state.currentIndex + delta;
-  if (newIdx < 0 || newIdx >= list.length) return;
-  showTankDetail(list[newIdx]);
 }
 
 // ==================== 多图指示器 ====================
@@ -664,7 +628,6 @@ function renderRelated(currentTank) {
   if (!zone) return;
   const cat = getTankCategory(currentTank);
 
-  // 同国家优先，同类型补充
   const sameNation = tanks.filter(t =>
     t.name !== currentTank.name &&
     getTankCategory(t) === cat &&
@@ -692,7 +655,6 @@ function renderRelated(currentTank) {
 
 // ==================== 灯箱 ====================
 function setupLightbox() {
-  // 点击黑底关闭
   $('lightbox').addEventListener('click', e => {
     if (e.target.id === 'lightbox') closeLightbox();
   });
@@ -882,48 +844,6 @@ function renderRecent() {
   });
 }
 
-// ==================== 统计页 ====================
-function renderStats() {
-  const total = $('stat-total');
-  if (!total) return;
-  $('stat-total').textContent = tanks.length;
-  $('stat-authors').textContent = Object.keys(authors).length;
-
-  renderBars('stat-category', countBy(tanks, t => CATEGORY_LABELS[getTankCategory(t)]));
-  renderBars('stat-nation', countBy(tanks, t => {
-    const cat = getTankCategory(t);
-    if (cat === 'REAL') return REAL_NATIONS[t.nation] || t.nation;
-    if (cat === 'WT') return WT_NATIONS[t.nation] || (t.nation === 'SU' ? WT_NATIONS.RU : t.nation) || t.nation;
-    return GAME_NATIONS[t.nation] || t.nation;
-  }));
-  renderBars('stat-type', countBy(tanks, t => displayTypeFor(t)));
-  renderBars('stat-author', countBy(tanks, t => (authors[t.authorId]?.name || t.authorId)));
-}
-
-function countBy(arr, fn) {
-  const map = new Map();
-  arr.forEach(x => {
-    const k = fn(x);
-    map.set(k, (map.get(k) || 0) + 1);
-  });
-  return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-}
-
-function renderBars(id, entries) {
-  const el = $(id);
-  if (!el) return;
-  const max = Math.max(...entries.map(e => e[1]), 1);
-  el.innerHTML = entries.map(([label, count]) => `
-    <div class="stat-bar-row">
-      <span class="stat-bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
-      <div class="stat-bar-track">
-        <div class="stat-bar-fill" style="width:${(count / max) * 100}%"></div>
-      </div>
-      <span class="stat-bar-value">${count}</span>
-    </div>
-  `).join('');
-}
-
 // ==================== 回到顶部 ====================
 function setupBackToTop() {
   const btn = $('back-to-top');
@@ -938,7 +858,6 @@ function scrollToTop() {
 // ==================== 键盘快捷键 ====================
 function setupKeyboard() {
   document.addEventListener('keydown', e => {
-    // 忽略输入框
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
 
@@ -952,12 +871,6 @@ function setupKeyboard() {
     if ($('lightbox').classList.contains('active')) {
       if (e.key === 'ArrowLeft') lightboxPrev();
       else if (e.key === 'ArrowRight') lightboxNext();
-      return;
-    }
-
-    if ($('detail').classList.contains('active')) {
-      if (e.key === 'ArrowLeft') navDetail(-1);
-      else if (e.key === 'ArrowRight') navDetail(1);
     }
   });
 }
@@ -969,7 +882,6 @@ function checkHash() {
   const name = decodeURIComponent(m[1]);
   const tank = tanks.find(t => t.name === name);
   if (tank) {
-    // 延迟打开，等页面初始化完
     setTimeout(() => showTankDetail(tank), 200);
   }
 }
@@ -993,6 +905,17 @@ function bindGlobalEvents() {
   document.addEventListener('dragstart', e => {
     if (e.target.tagName === 'IMG' && !e.target.closest('.preview-item')) e.preventDefault();
   });
+}
+
+// ==================== 分享图按钮绑定 ====================
+function setupShareCard() {
+  const btn = $('btn-share-card');
+  if (btn && btn.dataset.bound !== '1') {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      if (typeof onShareCardClick === 'function') onShareCardClick();
+    });
+  }
 }
 
 // ==================== 投稿：坦克 ====================
@@ -1030,7 +953,6 @@ function setupSubmitInputs() {
     });
   }
 
-  // 草稿监听
   ['sub-category', 'sub-nation', 'sub-tier-or-era', 'sub-type', 'sub-name', 'sub-text']
     .forEach(id => {
       const el = $(id);
@@ -1062,7 +984,6 @@ function renderPreviewGrid() {
     preview.appendChild(item);
   });
 
-  // 按钮点击
   preview.querySelectorAll('.preview-actions button').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -1074,7 +995,6 @@ function renderPreviewGrid() {
     });
   });
 
-  // 拖拽
   preview.querySelectorAll('.preview-item').forEach(item => {
     item.addEventListener('dragstart', e => {
       dragSrcIdx = +item.dataset.idx;

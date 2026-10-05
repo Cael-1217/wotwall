@@ -54,6 +54,7 @@ const CHANGELOG_ENTRIES = [
 
 const CHANGELOG_SEEN_KEY = 'tw_seen_version';
 
+// ---------- 完整日志渲染 ----------
 function renderChangelog() {
   const content = document.getElementById('changelog-content');
   if (!content) return;
@@ -65,25 +66,70 @@ function renderChangelog() {
   `).join('');
 }
 
+// ---------- 版本已读状态 ----------
 function shouldShowChangelog() {
   try {
     return localStorage.getItem(CHANGELOG_SEEN_KEY) !== APP_VERSION;
-  } catch (e) { return false; }
+  } catch (e) {
+    return false;
+  }
+}
+function markChangelogSeen() {
+  try { localStorage.setItem(CHANGELOG_SEEN_KEY, APP_VERSION); } catch (e) {}
 }
 
+// ---------- 右下角浮窗 ----------
+function showChangelogToast() {
+  const toast = document.getElementById('changelog-toast');
+  if (!toast) return;
+
+  const latest = CHANGELOG_ENTRIES[0];
+  if (latest) {
+    const vEl = document.getElementById('cl-toast-version');
+    if (vEl) vEl.textContent = 'v' + latest.version;
+
+    const bEl = document.getElementById('cl-toast-body');
+    if (bEl) {
+      bEl.innerHTML = latest.items
+        .slice(0, 5)
+        .map(i => `<div class="cl-item">· ${escapeHtml(i)}</div>`)
+        .join('');
+    }
+  }
+  toast.classList.add('active');
+}
+
+function dismissChangelogToast() {
+  const toast = document.getElementById('changelog-toast');
+  if (toast) toast.classList.remove('active');
+  markChangelogSeen();
+}
+
+// ---------- 完整日志弹窗 ----------
 function openChangelog() {
   renderChangelog();
-  document.getElementById('changelog-modal').classList.add('active');
+  const toast = document.getElementById('changelog-toast');
+  if (toast) toast.classList.remove('active');
+
+  const modal = document.getElementById('changelog-modal');
+  if (modal) modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
 
 function closeChangelog() {
-  try { localStorage.setItem(CHANGELOG_SEEN_KEY, APP_VERSION); } catch (e) {}
-  document.getElementById('changelog-modal').classList.remove('active');
+  markChangelogSeen();
+  const modal = document.getElementById('changelog-modal');
+  if (modal) modal.classList.remove('active');
   document.body.style.overflow = '';
 }
 
-// 点击遮罩关闭
-document.getElementById('changelog-modal')?.addEventListener('click', (e) => {
-  if (e.target.id === 'changelog-modal') closeChangelog();
-});
+// ---------- 统一绑定（避免重复监听） ----------
+function setupChangelogUI() {
+  const modal = document.getElementById('changelog-modal');
+  if (modal && modal.dataset.bound !== '1') {
+    modal.dataset.bound = '1';
+    modal.addEventListener('click', e => {
+      if (e.target.id === 'changelog-modal') closeChangelog();
+    });
+  }
+}
