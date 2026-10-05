@@ -16,12 +16,13 @@
 <header>
   <div class="brand">
     <h1>Tanks<span>Wall</span></h1>
-    <div class="ver">v2.2</div>
+    <div class="ver">v2.3</div>
   </div>
   <nav class="tabs" id="tabs">
     <button class="tab-btn active" data-page="tank-page">展品</button>
     <button class="tab-btn" data-page="author-page">作者</button>
     <button class="tab-btn" data-page="tools-page">工具</button>
+    <button class="tab-btn" data-page="stats-page">统计</button>
     <button class="tab-btn" data-page="submit-page">投稿</button>
     <button class="tab-btn" data-page="user-page">我的</button>
     <button class="tab-btn" data-page="settings-page">设置</button>
@@ -47,7 +48,19 @@
       <button onclick="clearAuthorFilter()">显示全部</button>
     </div>
     <div id="grid" class="grid-mode"></div>
-    <div id="tank-empty" class="empty-state" style="display:none;">没有找到符合条件的展品</div>
+    <div id="tank-empty" class="empty-state" style="display:none;">
+      <svg class="empty-svg" viewBox="0 0 120 80" aria-hidden="true">
+        <rect x="14" y="42" width="92" height="18" rx="4"/>
+        <rect x="32" y="22" width="46" height="20" rx="4"/>
+        <line x1="42" y1="42" x2="68" y2="12" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="30" cy="64" r="6"/>
+        <circle cx="60" cy="64" r="6"/>
+        <circle cx="90" cy="64" r="6"/>
+      </svg>
+      <div class="empty-title">没有找到符合条件的展品</div>
+      <div class="empty-hint">试试清除筛选或更换搜索词</div>
+      <button class="btn btn-primary" style="max-width:160px; margin:16px auto 0;" onclick="resetAllFilters()">清除筛选</button>
+    </div>
   </div>
 
   <div id="author-page" class="page-content">
@@ -163,6 +176,39 @@
     </div>
   </div>
 
+  <div id="stats-page" class="page-content">
+    <div class="stat-overview">
+      <div class="stat-big">
+        <div class="stat-big-num" id="stat-total">0</div>
+        <div class="stat-big-label">展品总数</div>
+      </div>
+      <div class="stat-big">
+        <div class="stat-big-num" id="stat-authors">0</div>
+        <div class="stat-big-label">作者</div>
+      </div>
+    </div>
+
+    <div class="tool-card">
+      <h3>分类分布</h3>
+      <div id="stat-category" class="stat-bars"></div>
+    </div>
+
+    <div class="tool-card">
+      <h3>国家分布</h3>
+      <div id="stat-nation" class="stat-bars"></div>
+    </div>
+
+    <div class="tool-card">
+      <h3>类型分布</h3>
+      <div id="stat-type" class="stat-bars"></div>
+    </div>
+
+    <div class="tool-card">
+      <h3>作者作品数</h3>
+      <div id="stat-author" class="stat-bars"></div>
+    </div>
+  </div>
+
   <div id="submit-page" class="page-content">
     <div id="submit-need-login" style="display:none;">
       <div class="tool-card" style="text-align:center;">
@@ -176,30 +222,23 @@
       <div class="tool-card">
         <h3>投稿坦克</h3>
         <div class="desc">选择分类后填写信息，上传图片，生成后发给站长</div>
-
         <div class="form-label">分类</div>
         <select class="form-select" id="sub-category" onchange="updateSubmitOptions()">
           <option value="WOT">WOT/B</option>
           <option value="WT">WT</option>
           <option value="REAL">现实/架空</option>
         </select>
-
         <div class="form-label">国家</div>
         <select class="form-select" id="sub-nation"></select>
-
         <div class="form-label" id="sub-tier-label">等级</div>
         <select class="form-select" id="sub-tier-or-era"></select>
-
         <div class="form-label">类型</div>
         <select class="form-select" id="sub-type"></select>
-
         <div class="form-label">坦克名称（用于图片命名）</div>
         <input class="form-text-input" id="sub-name" placeholder="例：虎王 75WT">
-
         <div class="form-label">描述 / 背景</div>
         <textarea class="form-textarea" id="sub-text" rows="6" placeholder="填写坦克简介、历史、性能等"></textarea>
-
-        <div class="form-label">图片（最多 3 张）</div>
+        <div class="form-label">图片（最多 3 张，可拖动排序）</div>
         <label class="file-drop">
           <input type="file" id="sub-imgs" accept="image/*" multiple>
           <div id="sub-imgs-label">点击选择图片</div>
@@ -210,11 +249,9 @@
           <div class="progress-fill" id="sub-progress-fill"></div>
         </div>
         <div class="progress-text" id="sub-progress-text" style="display:none;"></div>
-
         <div class="btn-row">
           <button class="btn btn-primary" onclick="generateTankSubmission()">生成投稿</button>
         </div>
-
         <div id="sub-result" style="display:none;">
           <div class="form-label">生成结果</div>
           <div class="code-preview" id="sub-code"></div>
@@ -281,10 +318,15 @@
         </div>
       </div>
       <div style="margin-top:16px;">
-        <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">我的收藏</div>
+        <div class="section-title">我的收藏</div>
         <div id="favorites-list"></div>
       </div>
       <button class="btn btn-ghost" style="width:100%; margin-top:16px;" onclick="logout()">退出登录</button>
+    </div>
+
+    <div style="margin-top:20px;">
+      <div class="section-title">最近浏览</div>
+      <div id="recent-list"></div>
     </div>
   </div>
 
@@ -296,6 +338,17 @@
           <button type="button" data-theme="dark">深色</button>
           <button type="button" data-theme="light">浅色</button>
           <button type="button" data-theme="auto">跟随系统</button>
+        </div>
+      </div>
+      <div class="setting-item">
+        <label>主题色</label>
+        <div class="accent-picker" id="accent-picker">
+          <button type="button" data-accent="gold" style="background:#c9a860" title="金"></button>
+          <button type="button" data-accent="blue" style="background:#4a90e2" title="蓝"></button>
+          <button type="button" data-accent="green" style="background:#5aa860" title="绿"></button>
+          <button type="button" data-accent="purple" style="background:#a06ac0" title="紫"></button>
+          <button type="button" data-accent="red" style="background:#c05a5a" title="红"></button>
+          <button type="button" data-accent="gray" style="background:#8a8a92" title="灰"></button>
         </div>
       </div>
       <div class="setting-item">
@@ -315,39 +368,13 @@
     </div>
 
     <div class="setting-group">
+      <div class="setting-item" onclick="openChangelog()" style="cursor:pointer;">
+        <label>更新日志</label>
+        <span style="color:var(--text-dim); font-size:13px;">查看 →</span>
+      </div>
       <div class="setting-item">
         <label>版本</label>
-        <span style="font-family:ui-monospace,monospace; font-size:13px; color:var(--text-dim);">v2.2.0</span>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <h3>更新日志</h3>
-      <div class="changelog">
-        <h4>v2.2</h4>
-        <ul>
-          <li>新增作者主页</li>
-          <li>外观支持"跟随系统"</li>
-          <li>投稿表单自动保存草稿</li>
-          <li>详情页新增"生成分享图"</li>
-          <li>代码拆分为多个文件</li>
-        </ul>
-        <h4>v2.1</h4>
-        <ul>
-          <li>新增展品分类：WOT/B、WT、现实/架空</li>
-          <li>筛选栏根据分类动态切换</li>
-          <li>WT 国家改为实际国家</li>
-          <li>WOT/B 保留反坦/火炮分开</li>
-          <li>下拉菜单改为网页风格自定义 UI</li>
-          <li>加载屏支持点击关闭</li>
-          <li>注册工具移至"我的"页面</li>
-        </ul>
-        <h4>v2.0</h4>
-        <ul>
-          <li>全新视觉，简约展览墙风格</li>
-          <li>移除小游戏与运势抽卡</li>
-          <li>新增投稿工具：本地压缩、一键分享</li>
-        </ul>
+        <span style="font-family:ui-monospace,monospace; font-size:13px; color:var(--text-dim);">v2.3.0</span>
       </div>
     </div>
 
@@ -362,8 +389,16 @@
 <div id="detail">
   <div class="detail-header">
     <button class="back" onclick="closeDetail()">← 返回</button>
+    <div class="detail-nav">
+      <span class="detail-pos" id="detail-pos"></span>
+      <button class="nav-btn" id="detail-prev" title="上一个">‹</button>
+      <button class="nav-btn" id="detail-next" title="下一个">›</button>
+    </div>
   </div>
-  <div id="gallery"></div>
+  <div class="gallery-wrap">
+    <div id="gallery"></div>
+    <div class="gallery-dots" id="gallery-dots"></div>
+  </div>
   <div class="detail-body">
     <h2 id="dtitle"></h2>
     <div class="meta-row" id="detail-meta"></div>
@@ -371,6 +406,7 @@
     <div id="detail-fav-container" style="margin-bottom:14px;"></div>
     <button class="btn btn-primary" id="btn-share-card" style="width:100%; margin-bottom:14px;">生成分享图</button>
     <div id="desc"></div>
+    <div id="related-zone"></div>
   </div>
 </div>
 
@@ -392,7 +428,32 @@
   <div class="profile-works" id="profile-works"></div>
 </div>
 
+<div id="lightbox" class="lightbox">
+  <button class="lb-close" onclick="closeLightbox()">×</button>
+  <button class="lb-nav lb-prev" onclick="lightboxPrev()">‹</button>
+  <img id="lb-img" src="">
+  <button class="lb-nav lb-next" onclick="lightboxNext()">›</button>
+  <div class="lb-counter" id="lb-counter"></div>
+</div>
+
+<div id="changelog-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>更新日志</h2>
+      <button class="modal-close" onclick="closeChangelog()">×</button>
+    </div>
+    <div class="modal-body" id="changelog-content"></div>
+  </div>
+</div>
+
+<button id="back-to-top" class="back-to-top" onclick="scrollToTop()" aria-label="回到顶部">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="6 14 12 8 18 14"/>
+  </svg>
+</button>
+
 <script src="data.js"></script>
+<script src="changelog.js"></script>
 <script src="utils.js"></script>
 <script src="app.js"></script>
 <script src="share.js"></script>

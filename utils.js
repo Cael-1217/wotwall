@@ -10,6 +10,15 @@ function sanitizeFilename(name) {
   return String(name).trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'tank';
 }
 
+function hexToRgb(hex) {
+  const m = hex.replace('#', '');
+  const n = m.length === 3
+    ? m.split('').map(c => c + c).join('')
+    : m;
+  const num = parseInt(n, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
 // ---- Toast ----
 let __toastTimer;
 function toast(msg) {
@@ -75,19 +84,30 @@ function loadImage(file) {
   });
 }
 
+// 修复：先尝试跨域，失败时退回到普通加载（可能污染 canvas，但至少能显示）
 function loadImageFromUrl(url) {
   return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
+    const attempt = (useCors) => {
+      const img = new Image();
+      if (useCors) img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        if (useCors) attempt(false);
+        else reject(new Error('图片加载失败: ' + url));
+      };
+      img.src = url;
+    };
+    attempt(true);
   });
 }
 
 function canvasToBlob(canvas, quality) {
-  return new Promise(resolve => {
-    canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob 失败')), 'image/jpeg', quality);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
@@ -125,4 +145,16 @@ async function compressImage(file, opts = {}) {
   }
   if (!best) best = await canvasToBlob(canvas, 0.1);
   return best;
+}
+
+// ---- 图片淡入 ----
+function fadeInImg(imgEl) {
+  if (!imgEl) return;
+  const done = () => imgEl.classList.add('loaded');
+  if (imgEl.complete && imgEl.naturalHeight > 0) {
+    done();
+  } else {
+    imgEl.addEventListener('load', done, { once: true });
+    imgEl.addEventListener('error', done, { once: true });
+  }
 }

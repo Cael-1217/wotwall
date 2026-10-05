@@ -10,6 +10,21 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function getAccentColor() {
+  const isLight = document.documentElement.classList.contains('light');
+  const name = localStorage.getItem('tw_accent') || 'gold';
+  const presets = {
+    gold:   { dark: '#c9a860', light: '#8a6f3a' },
+    blue:   { dark: '#4a90e2', light: '#2f6fbf' },
+    green:  { dark: '#5aa860', light: '#3a7a40' },
+    purple: { dark: '#a06ac0', light: '#7a4a90' },
+    red:    { dark: '#c05a5a', light: '#903a3a' },
+    gray:   { dark: '#8a8a92', light: '#66666e' },
+  };
+  const p = presets[name] || presets.gold;
+  return isLight ? p.light : p.dark;
+}
+
 async function generateShareCard(tank) {
   const W = 750, H = 1100, DPR = 2;
   const canvas = document.createElement('canvas');
@@ -23,7 +38,7 @@ async function generateShareCard(tank) {
   const surface = isLight ? '#ffffff' : '#1e1e22';
   const text = isLight ? '#1a1a1c' : '#e8e8ea';
   const textDim = isLight ? '#66666e' : '#8a8a92';
-  const accent = isLight ? '#8a6f3a' : '#c9a860';
+  const accent = getAccentColor();
   const border = isLight ? '#e0dfda' : '#2a2a2e';
 
   ctx.fillStyle = bg;
@@ -126,30 +141,36 @@ async function generateShareCard(tank) {
   ctx.font = '16px monospace';
   ctx.fillText('TanksWall · 坦克墙', W / 2, H - 40);
 
-  return new Promise(resolve => {
-    canvas.toBlob(blob => {
-      if (!blob) { toast('生成失败'); resolve(); return; }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${sanitizeFilename(tank.name)}_分享.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      resolve();
-    }, 'image/png');
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('生成失败')); return; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${sanitizeFilename(tank.name)}_分享.png`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        resolve();
+      }, 'image/png');
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
 async function onShareCardClick() {
-  if (!window.__currentTank) return;
+  const t = window.__currentTank;
+  if (!t) { toast('请先打开一个展品'); return; }
   const btn = document.getElementById('btn-share-card');
   const old = btn.textContent;
   btn.disabled = true;
   btn.textContent = '生成中…';
   try {
-    await generateShareCard(window.__currentTank);
+    await generateShareCard(t);
     toast('已生成');
   } catch (e) {
-    toast('生成失败');
+    console.error(e);
+    toast('生成失败：' + (e.message || '未知错误'));
   } finally {
     btn.disabled = false;
     btn.textContent = old;
