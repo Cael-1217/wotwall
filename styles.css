@@ -960,6 +960,10 @@ body.destroy-mode .destroy-egg-btn {
   z-index: 500;
   pointer-events: none;
   overflow: hidden;
+  display: none;            /* ← 关键修复：默认不参与布局，不吃触摸 */
+}
+body.destroy-mode .destroy-layer {
+  display: block;           /* ← 只在破坏模式下才显示 */
 }
 .destroy-layer .card {
   pointer-events: auto;
