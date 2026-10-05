@@ -60,6 +60,17 @@
       <div class="empty-hint">试试清除筛选或更换搜索词</div>
       <button class="btn btn-primary" style="max-width:160px; margin:16px auto 0;" onclick="resetAllFilters()">清除筛选</button>
     </div>
+    <!-- 列表底部装饰剪影 -->
+    <div id="tank-end-deco" class="tank-end-deco" style="display:none;">
+      <svg viewBox="0 0 120 80" aria-hidden="true">
+        <rect x="14" y="42" width="92" height="18" rx="4"/>
+        <rect x="32" y="22" width="46" height="20" rx="4"/>
+        <line x1="42" y1="42" x2="68" y2="12" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="30" cy="64" r="6"/>
+        <circle cx="60" cy="64" r="6"/>
+        <circle cx="90" cy="64" r="6"/>
+      </svg>
+    </div>
   </div>
 
   <div id="author-page" class="page-content">
@@ -314,7 +325,6 @@
           <button type="button" data-accent="green"  style="background:#5aa860" title="绿"></button>
           <button type="button" data-accent="purple" style="background:#a06ac0" title="紫"></button>
           <button type="button" data-accent="red"    style="background:#c05a5a" title="红"></button>
-          <button type="button" data-accent="gray"   style="background:#8a8a92" title="灰"></button>
         </div>
       </div>
       <div class="setting-item">

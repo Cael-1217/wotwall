@@ -19,7 +19,6 @@ function getAccentColor() {
     green:  { dark: '#5aa860', light: '#3a7a40' },
     purple: { dark: '#a06ac0', light: '#7a4a90' },
     red:    { dark: '#c05a5a', light: '#903a3a' },
-    gray:   { dark: '#8a8a92', light: '#66666e' },
   };
   const p = presets[name] || presets.gold;
   return isLight ? p.light : p.dark;
@@ -44,7 +43,6 @@ async function generateShareCard(tank) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // 顶部 logo
   ctx.font = 'bold 26px -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.fillStyle = text;
@@ -58,7 +56,6 @@ async function generateShareCard(tank) {
   ctx.fillStyle = textDim;
   ctx.fillText(new Date().toLocaleDateString('zh-CN'), W - 40, 68);
 
-  // 图片区
   const imgBox = { x: 40, y: 100, w: W - 80, h: 540 };
   ctx.fillStyle = surface;
   drawRoundedRect(ctx, imgBox.x, imgBox.y, imgBox.w, imgBox.h, 16);
@@ -77,7 +74,6 @@ async function generateShareCard(tank) {
     ctx.fillText('图片加载失败', W / 2, imgBox.y + imgBox.h / 2);
   }
 
-  // 名称
   ctx.textAlign = 'center';
   ctx.fillStyle = text;
   let nameFontSize = 44;
@@ -90,7 +86,6 @@ async function generateShareCard(tank) {
   }
   ctx.fillText(tank.name, W / 2, 718);
 
-  // meta
   ctx.font = '22px sans-serif';
   ctx.fillStyle = textDim;
   ctx.fillText(getCardInfoText(tank), W / 2, 758);
@@ -98,7 +93,6 @@ async function generateShareCard(tank) {
   ctx.font = '20px sans-serif';
   ctx.fillText(displayTypeFor(tank), W / 2, 790);
 
-  // 分隔线
   ctx.strokeStyle = border;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -106,7 +100,6 @@ async function generateShareCard(tank) {
   ctx.lineTo(W - 80, 848);
   ctx.stroke();
 
-  // 作者
   const author = (typeof authors !== 'undefined' && authors[tank.authorId]) || null;
   if (author) {
     const ar = 30;
@@ -135,7 +128,6 @@ async function generateShareCard(tank) {
     ctx.fillText(author.title, ax + ar * 2 + 16, ay + 50);
   }
 
-  // 底部水印
   ctx.textAlign = 'center';
   ctx.fillStyle = textDim;
   ctx.font = '16px monospace';

@@ -12,13 +12,11 @@
   --accent: #c9a860;
   --accent-soft: rgba(201, 168, 96, 0.12);
   --accent-bg: rgba(201, 168, 96, 0.045);
-  --type-icon: #4a90e2;
 }
 html.light {
   --bg: #f4f3f0; --surface: #ffffff; --surface-2: #f9f8f5;
   --border: #e0dfda; --border-strong: #c8c7c2;
   --text: #1a1a1c; --text-dim: #66666e; --text-faint: #9a9aa2;
-  --type-icon: #2f6fbf;
 }
 * { box-sizing: border-box; }
 html, body {
@@ -149,7 +147,8 @@ main {
 #grid.list-mode .title-container { justify-content: flex-start; font-size: 14px; }
 .type-icon {
   width: 15px; height: 15px; flex-shrink: 0;
-  color: var(--type-icon); display: inline-block; vertical-align: middle;
+  color: var(--accent); display: inline-block; vertical-align: middle;
+  transition: color 0.2s ease;
 }
 .type-badge {
   font-size: 11px; color: var(--text-dim);
@@ -746,6 +745,23 @@ html.light .gallery-dots .dot { background: rgba(0,0,0,0.25); }
 .empty-svg line { stroke: currentColor; }
 .empty-title { font-size: 15px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px; }
 .empty-hint { color: var(--text-faint); font-size: 12px; }
+
+/* 列表底部装饰剪影 */
+.tank-end-deco {
+  text-align: center;
+  padding: 48px 20px 24px;
+  color: var(--accent);
+  opacity: 0.14;
+  pointer-events: none;
+  user-select: none;
+}
+.tank-end-deco svg {
+  width: 150px;
+  height: 100px;
+  fill: currentColor;
+  display: inline-block;
+}
+.tank-end-deco svg line { stroke: currentColor; }
 
 /* Changelog legacy */
 .changelog { font-size: 13px; line-height: 1.75; color: var(--text-dim); }

@@ -80,7 +80,6 @@ const ACCENT_PRESETS = {
   green:  { dark: '#5aa860', light: '#3a7a40' },
   purple: { dark: '#a06ac0', light: '#7a4a90' },
   red:    { dark: '#c05a5a', light: '#903a3a' },
-  gray:   { dark: '#8a8a92', light: '#66666e' },
 };
 
 const state = {
@@ -123,7 +122,6 @@ const $ = id => document.getElementById(id);
   if (typeof setupChangelogUI === 'function') setupChangelogUI();
   checkHash();
 
-  // 新版本首次打开 → 右下角浮窗
   if (typeof shouldShowChangelog === 'function' && shouldShowChangelog()) {
     setTimeout(() => {
       if (typeof showChangelogToast === 'function') showChangelogToast();
@@ -149,6 +147,12 @@ function startLoadingScreen() {
 // ==================== 主题色 ====================
 function applyAccentFromStorage() {
   const name = localStorage.getItem(ACCENT_KEY) || 'gold';
+  // 兼容旧值：若存储的是已移除的 gray，回退到 gold
+  if (!ACCENT_PRESETS[name]) {
+    localStorage.setItem(ACCENT_KEY, 'gold');
+    applyAccent('gold');
+    return;
+  }
   applyAccent(name);
 }
 function applyAccent(name) {
@@ -164,6 +168,7 @@ function applyAccent(name) {
   });
 }
 function setAccent(name) {
+  if (!ACCENT_PRESETS[name]) return;
   localStorage.setItem(ACCENT_KEY, name);
   applyAccent(name);
 }
@@ -434,6 +439,10 @@ function drawTanks() {
   const frag = document.createDocumentFragment();
   list.forEach(t => frag.appendChild(renderCard(t)));
   grid.appendChild(frag);
+
+  // 底部装饰剪影：仅在有内容时显示
+  const deco = $('tank-end-deco');
+  if (deco) deco.style.display = list.length === 0 ? 'none' : 'block';
 }
 
 function clickToViewAuthor(key) {
@@ -547,7 +556,6 @@ function showTankDetail(t) {
   metaHtml += `<span class="meta-pill">${CATEGORY_LABELS[cat]}</span>`;
   $('detail-meta').innerHTML = metaHtml;
 
-  // 图片
   const gallery = $('gallery');
   gallery.innerHTML = t.imgs.map((src, i) =>
     `<img class="gallery-img" src="${src}" alt=""
