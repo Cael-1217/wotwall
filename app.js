@@ -1,4 +1,4 @@
-// ==================== TanksWall v2.1 ====================
+// ==================== TanksWall 主逻辑 ====================
 
 const TYPE_ICONS = {
   '重坦': `<g stroke="currentColor" stroke-width="3" stroke-linecap="butt">
@@ -33,15 +33,9 @@ const GAME_NATIONS = {
 };
 
 const WT_NATION_OPTIONS = [
-  ['US', '美国'],
-  ['DE', '德国'],
-  ['RU', '俄罗斯 / 苏联'],
-  ['UK', '英国'],
-  ['FR', '法国'],
-  ['IT', '意大利'],
-  ['SE', '瑞典'],
-  ['IL', '以色列'],
-  ['OT', '其他']
+  ['US', '美国'], ['DE', '德国'], ['RU', '俄罗斯 / 苏联'],
+  ['UK', '英国'], ['FR', '法国'], ['IT', '意大利'],
+  ['SE', '瑞典'], ['IL', '以色列'], ['OT', '其他']
 ];
 const WT_NATIONS = Object.fromEntries(WT_NATION_OPTIONS);
 
@@ -57,11 +51,8 @@ const WT_TIERS = (() => {
 })();
 
 const REAL_ERAS = {
-  WW1: '一战时期',
-  WW2: '二战时期',
-  COLD: '冷战降临',
-  MODERN: '现代战争',
-  F2042: '未来先锋'
+  WW1: '一战时期', WW2: '二战时期', COLD: '冷战降临',
+  MODERN: '现代战争', F2042: '未来先锋'
 };
 
 const REAL_NATIONS = {
@@ -82,6 +73,8 @@ const REAL_NATION_OPTIONS = [
 
 const CATEGORY_LABELS = { WOT: 'WOT/B', WT: 'WT', REAL: '现实/架空' };
 
+const DRAFT_KEY = 'tw_submit_draft';
+
 const state = {
   currentPage: 'tank-page',
   currentAuthor: '',
@@ -94,6 +87,7 @@ const $ = id => document.getElementById(id);
 
 // ==================== 初始化 ====================
 (function init() {
+  applyThemeFromStorage();
   loadSettings();
   loadUserFromStorage();
   bindGlobalEvents();
@@ -104,8 +98,11 @@ const $ = id => document.getElementById(id);
   setupSpottingAutoCalc();
   setupSubmitInputs();
   updateSubmitOptions();
+  loadDraft();
   enhanceAllSelects();
   startLoadingScreen();
+  setupAuthorCardClicks();
+  setupShareCard();
 })();
 
 function startLoadingScreen() {
@@ -123,24 +120,55 @@ function startLoadingScreen() {
   setTimeout(dismiss, 3000);
 }
 
+// ==================== 主题（含跟随系统） ====================
+function getStoredTheme() {
+  return localStorage.getItem('tw_theme') || 'auto';
+}
+function applyTheme(mode) {
+  let isLight;
+  if (mode === 'auto') {
+    isLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+  } else {
+    isLight = mode === 'light';
+  }
+  document.documentElement.classList.toggle('light', isLight);
+}
+function applyThemeFromStorage() {
+  const mode = getStoredTheme();
+  applyTheme(mode);
+  const seg = $('theme-seg');
+  if (seg) {
+    seg.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === mode);
+    });
+  }
+}
+function setTheme(mode) {
+  localStorage.setItem('tw_theme', mode);
+  applyThemeFromStorage();
+}
+// 系统主题变化时同步
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (getStoredTheme() === 'auto') applyTheme('auto');
+});
+
 // ==================== 设置 ====================
 function loadSettings() {
-  if (localStorage.getItem('tw_theme') === 'light') {
-    document.documentElement.classList.add('light');
-    $('theme-toggle').checked = true;
-  }
   const layout = localStorage.getItem('tw_layout') || 'grid';
   state.layout = layout;
-  $('layout-select').value = layout;
+  const sel = $('layout-select');
+  if (sel) sel.value = layout;
   $('grid').className = layout === 'list' ? 'list-mode' : 'grid-mode';
   if (localStorage.getItem('tw_anim') === '0') {
     state.pageAnimEnabled = false;
     $('anim-toggle').checked = false;
   }
-}
-function toggleTheme(isLight) {
-  document.documentElement.classList.toggle('light', isLight);
-  localStorage.setItem('tw_theme', isLight ? 'light' : 'dark');
+  const seg = $('theme-seg');
+  if (seg) {
+    seg.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => setTheme(b.dataset.theme));
+    });
+  }
 }
 function toggleLayout(mode) {
   state.layout = mode;
@@ -193,7 +221,6 @@ function updateFilterOptions() {
   const prevTier = tierSel.value;
   const prevType = typeSel.value;
 
-  // 类型选项：WOT 分开反坦/火炮，其他分类合并
   let typeOpts;
   if (cat === 'WOT') {
     typeOpts = ['重坦', '中坦', '轻坦', '反坦', '火炮', '工程车'];
@@ -234,12 +261,6 @@ function updateFilterOptions() {
 }
 
 // ==================== 展品列表 ====================
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
-
 function getTypeIcon(type) {
   const key = displayType(type);
   const inner = TYPE_ICONS[key];
@@ -356,14 +377,14 @@ function clearAuthorFilter() {
   drawTanks();
 }
 
-// ==================== 作者 ====================
+// ==================== 作者列表 ====================
 function renderAuthors() {
   const container = $('author-card-container');
   if (!container) return;
   container.innerHTML = Object.keys(authors).map(key => {
     const a = authors[key];
     return `
-      <div class="author-card-box">
+      <div class="author-card-box" data-author-key="${key}">
         <div class="author-main">
           <img class="author-avatar" src="${a.avatar}" alt=""
                onerror="this.src='https://via.placeholder.com/80'">
@@ -382,15 +403,79 @@ function renderAuthors() {
       </div>
     `;
   }).join('');
-  container.querySelectorAll('.author-work-preview').forEach(el => {
-    el.addEventListener('click', () => clickToViewAuthor(el.dataset.author));
+  setupAuthorCardClicks();
+}
+
+function setupAuthorCardClicks() {
+  const container = $('author-card-container');
+  if (!container || container.dataset.bound === '1') return;
+  container.dataset.bound = '1';
+  container.addEventListener('click', e => {
+    const previewBtn = e.target.closest('.author-work-preview');
+    if (previewBtn) {
+      e.stopPropagation();
+      clickToViewAuthor(previewBtn.dataset.author);
+      return;
+    }
+    const card = e.target.closest('.author-card-box');
+    if (card && card.dataset.authorKey) {
+      showAuthorDetail(card.dataset.authorKey);
+    }
   });
+}
+
+// ==================== 作者主页 ====================
+function showAuthorDetail(key) {
+  const a = authors[key];
+  if (!a) return;
+  const works = tanks.filter(t => t.authorId === key);
+
+  $('profile-avatar').src = a.avatar;
+  $('profile-avatar').onerror = function() { this.src = 'https://via.placeholder.com/88'; };
+  $('profile-name').textContent = a.name;
+  $('profile-title').textContent = a.title;
+  $('profile-works-count').textContent = works.length;
+  $('profile-fans-count').textContent = a.fansCount;
+  $('profile-join').textContent = `加入时间：${a.joinTime}`;
+
+  const worksGrid = $('profile-works');
+  worksGrid.innerHTML = '';
+  works.forEach(t => {
+    const card = document.createElement('div');
+    card.className = `card ${t.nation}`;
+    const icon = getTypeIcon(t.type);
+    card.innerHTML = `
+      <div class="title-container">${icon}<span>${escapeHtml(t.name)}</span></div>
+      <img class="tank-preview" src="${t.imgs[0]}" loading="lazy" alt=""
+           onerror="this.src='https://via.placeholder.com/200x120/1a1a1c/5a5a62?text=No+Image'">
+    `;
+    card.style.padding = '10px 10px 10px 13px';
+    card.style.textAlign = 'center';
+    const img = card.querySelector('.tank-preview');
+    img.style.width = '100%';
+    img.style.height = '110px';
+    img.style.objectFit = 'contain';
+    img.style.display = 'block';
+    img.style.marginTop = '6px';
+    card.addEventListener('click', () => showTankDetail(t));
+    worksGrid.appendChild(card);
+  });
+
+  $('author-detail').classList.add('active');
+  $('author-detail').scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+}
+function closeAuthorDetail() {
+  $('author-detail').classList.remove('active');
+  document.body.style.overflow = '';
 }
 
 // ==================== 详情 ====================
 function showTankDetail(t) {
   const detail = $('detail');
   const cat = getTankCategory(t);
+
+  window.__currentTank = t;
 
   $('dtitle').textContent = t.name;
   $('desc').textContent = t.text || '暂无简介';
@@ -416,8 +501,9 @@ function showTankDetail(t) {
   ).join('');
 
   const tankAuthor = authors[t.authorId] || authors['cael'];
-  $('detail-author-zone').innerHTML = `
-    <div class="author-strip">
+  const authorZone = $('detail-author-zone');
+  authorZone.innerHTML = `
+    <div class="author-strip" data-author-key="${t.authorId}">
       <img src="${tankAuthor.avatar}" alt="" onerror="this.src='https://via.placeholder.com/40'">
       <div class="info">
         <div class="name">${escapeHtml(tankAuthor.name)}</div>
@@ -425,6 +511,9 @@ function showTankDetail(t) {
       </div>
     </div>
   `;
+  authorZone.querySelector('.author-strip').addEventListener('click', () => {
+    showAuthorDetail(t.authorId);
+  });
 
   updateFavButton(t.name);
   detail.classList.add('active');
@@ -434,6 +523,13 @@ function showTankDetail(t) {
 function closeDetail() {
   $('detail').classList.remove('active');
   document.body.style.overflow = '';
+  window.__currentTank = null;
+}
+
+function setupShareCard() {
+  const btn = $('btn-share-card');
+  if (!btn) return;
+  btn.addEventListener('click', onShareCardClick);
 }
 
 // ==================== 用户 ====================
@@ -563,87 +659,6 @@ function bindGlobalEvents() {
   });
 }
 
-// ==================== Toast ====================
-let toastTimer;
-function toast(msg) {
-  let el = $('tw-toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'tw-toast';
-    el.style.cssText = `
-      position: fixed; bottom: 40px; left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: var(--surface-2); color: var(--text);
-      padding: 10px 18px; border-radius: 8px;
-      border: 1px solid var(--border);
-      font-size: 13px; z-index: 10000;
-      opacity: 0; transition: opacity 0.2s, transform 0.2s;
-      pointer-events: none; max-width: 80vw;
-    `;
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  requestAnimationFrame(() => {
-    el.style.opacity = '1';
-    el.style.transform = 'translateX(-50%) translateY(0)';
-  });
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(-50%) translateY(20px)';
-  }, 1800);
-}
-
-// ==================== 图片压缩 ====================
-function loadImage(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
-    img.src = url;
-  });
-}
-function canvasToBlob(canvas, quality) {
-  return new Promise(resolve => {
-    canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
-  });
-}
-async function compressImage(file, opts = {}) {
-  const { maxSide = 1200, targetKB = 35, square = false } = opts;
-  const img = await loadImage(file);
-  let sx = 0, sy = 0, sw = img.width, sh = img.height;
-  let w = img.width, h = img.height;
-  if (square) {
-    const s = Math.min(img.width, img.height);
-    sx = (img.width - s) / 2; sy = (img.height - s) / 2;
-    sw = sh = s; w = h = Math.min(maxSide, s);
-  } else if (Math.max(w, h) > maxSide) {
-    const r = maxSide / Math.max(w, h);
-    w = Math.round(w * r); h = Math.round(h * r);
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-
-  let lo = 0.1, hi = 0.92, best = null;
-  for (let i = 0; i < 8; i++) {
-    const q = (lo + hi) / 2;
-    const blob = await canvasToBlob(canvas, q);
-    const kb = blob.size / 1024;
-    if (kb > targetKB) hi = q;
-    else {
-      lo = q; best = blob;
-      if (Math.abs(kb - targetKB) < 3) break;
-    }
-  }
-  if (!best) best = await canvasToBlob(canvas, 0.1);
-  return best;
-}
-
 // ==================== 投稿：坦克 ====================
 let tankSubmission = { files: [], code: '' };
 
@@ -685,6 +700,16 @@ function setupSubmitInputs() {
       }
     });
   }
+
+  // 草稿监听
+  ['sub-category', 'sub-nation', 'sub-tier-or-era', 'sub-type', 'sub-name', 'sub-text']
+    .forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('input', saveDraft);
+        el.addEventListener('change', saveDraft);
+      }
+    });
 }
 
 function updateSubmitOptions() {
@@ -694,7 +719,6 @@ function updateSubmitOptions() {
   const tierLabel = $('sub-tier-label');
   const typeSel = $('sub-type');
 
-  // 类型选项：WOT 分开反坦/火炮，其他分类合并
   let typeOpts;
   if (cat === 'WOT') {
     typeOpts = ['重坦', '中坦', '轻坦', '反坦', '火炮', '工程车'];
@@ -720,8 +744,37 @@ function updateSubmitOptions() {
   }
 }
 
-function sanitizeFilename(name) {
-  return String(name).trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'tank';
+// ---- 草稿 ----
+function saveDraft() {
+  const d = {
+    category: $('sub-category')?.value || '',
+    nation: $('sub-nation')?.value || '',
+    tierOrEra: $('sub-tier-or-era')?.value || '',
+    type: $('sub-type')?.value || '',
+    name: $('sub-name')?.value || '',
+    text: $('sub-text')?.value || '',
+  };
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+}
+function loadDraft() {
+  let d;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (e) { d = null; }
+  if (!d) return;
+  if (d.category) {
+    $('sub-category').value = d.category;
+    updateSubmitOptions();
+  }
+  if (d.nation) $('sub-nation').value = d.nation;
+  if (d.tierOrEra) $('sub-tier-or-era').value = d.tierOrEra;
+  if (d.type) $('sub-type').value = d.type;
+  if (d.name) $('sub-name').value = d.name;
+  if (d.text) $('sub-text').value = d.text;
+  // 触发自定义下拉刷新
+  document.querySelectorAll('#sub-nation, #sub-tier-or-era, #sub-type, #sub-category')
+    .forEach(el => el.dispatchEvent(new Event('change')));
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
 }
 
 async function generateTankSubmission() {
@@ -777,6 +830,9 @@ async function generateTankSubmission() {
   $('sub-imgs-info').textContent = `已生成 ${outFiles.length} 张图片：${outFiles.map(f => f.name).join('、')}`;
   $('sub-result').style.display = 'block';
 
+  // 生成成功后清除草稿
+  clearDraft();
+
   setTimeout(() => {
     progressTrack.style.display = 'none';
     progressText.style.display = 'none';
@@ -813,28 +869,6 @@ async function shareTankSubmission() {
 function copyTankCode() {
   if (!tankSubmission.code) { toast('请先生成投稿'); return; }
   copyText(tankSubmission.code);
-}
-
-function copyText(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(
-      () => toast('已复制'),
-      () => fallbackCopy(text)
-    );
-  } else {
-    fallbackCopy(text);
-  }
-}
-function fallbackCopy(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand('copy'); toast('已复制'); }
-  catch { toast('复制失败，请长按选择'); }
-  document.body.removeChild(ta);
 }
 
 // ==================== 投稿：注册 ====================
