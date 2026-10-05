@@ -18,7 +18,7 @@ const authors = {
     "Lusfr": { name:"Lusfr", avatar:"avatar4.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 12:01:17", totalWorks:0 },
     "lhmx": { name:"凌寒沐雪", avatar:"avatar7.jpg", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-9-6  8:24:30", totalWorks:0 },
     "xian": { name:"仙仙大统领", avatar:"avatar5.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:13 },
-    "FPE": { name:"◆NEW WAY◆", avatar:"avatar6.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:0 },
+    "FPE": { name:"◆NEW WAY◆", avatar:"avatar6.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-16 15:18:23", totalWorks:1 },
     "tiger": { name:"湾仔虎", avatar:"avatar3.JPG", title:"新晋创作者", workText:"🖼️ 作品浏览", fansCount:1, joinTime:"2026-6-9 12:00:00", totalWorks:1 }
 };
 
