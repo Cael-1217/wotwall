@@ -571,7 +571,7 @@ function showTankDetail(t) {
   gallery.querySelectorAll('.gallery-img').forEach(fadeInImg);
   gallery.scrollLeft = 0;
 
- ation renderGalleryDots(t.imgs.length, 0);
+  renderGalleryDots(t.imgs.length, 0);
   gallery.removeEventListener('scroll', updateGalleryDots);
   gallery.addEventListener('scroll', updateGalleryDots, { passive: true });
   gallery.dataset.imgCount = t.imgs.length;
@@ -650,7 +650,7 @@ function renderRelated(currentTank) {
   const sameType = tanks.filter(t =>
     t.name !== currentTank.name &&
     getTankCategory(t) === cat &&
-    t.nation !== currentTank.n &&
+    t.nation !== currentTank.nation &&
     t.type === currentTank.type
   );
   const combined = [...sameNation, ...sameType].slice(0, 4);
@@ -1147,7 +1147,7 @@ function startDestroyPhysics(el, vx, vy) {
   let rot = 0;
   let vrot = (vx + vy) * 0.12 + (Math.random() - 0.5) * 4;
   let frames = 0;
-  el._physicsActive = true v;
+  el._physicsActive = true;
 
   const step = () => {
     if (!el._physicsActive) return;
@@ -1156,7 +1156,7 @@ function startDestroyPhysics(el, vx, vy) {
     vy += 0.6;   // 重力
     x += vx;
     y += vy;
-    rot +=rot;
+    rot += vrot;
     vrot *= 0.99;
     frames++;
 
