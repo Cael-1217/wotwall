@@ -1038,3 +1038,90 @@ html.light #weather-layer { opacity: 0.85; }
   transition: width 0.15s, height 0.15s, box-shadow 0.15s;
   box-shadow: 0 0 calc(var(--intensity) * 20px) var(--accent);
 }
+/* ==================== 天气多选按钮 ==================== */
+.weather-toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.weather-toggles button {
+  padding: 7px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.weather-toggles button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.weather-toggles button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 12px var(--accent-soft);
+}
+
+/* ==================== 天气画布 ==================== */
+#weather-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 1;
+  display: none;
+}
+body.destroy-mode #weather-layer { display: none !important; }
+html.light #weather-layer { opacity: 0.85; }
+
+/* ==================== 强度滑块 ==================== */
+.intensity-slider {
+  --intensity: 0.5;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: calc(6px + var(--intensity) * 8px);
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) calc(var(--intensity) * 100%),
+    var(--surface-2) calc(var(--intensity) * 100%),
+    var(--surface-2) 100%
+  );
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+  transition: height 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 0 calc(var(--intensity) * 24px) var(--accent-soft);
+}
+.intensity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(16px + var(--intensity) * 12px);
+  height: calc(16px + var(--intensity) * 12px);
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  transition: width 0.15s, height 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 calc(var(--intensity) * 20px) var(--accent);
+}
+.intensity-slider::-moz-range-thumb {
+  width: calc(16px + var(--intensity) * 12px);
+  height: calc(16px + var(--intensity) * 12px);
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  transition: width 0.15s, height 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 calc(var(--intensity) * 20px) var(--accent);
+}

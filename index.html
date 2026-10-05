@@ -345,21 +345,27 @@
     </div>
 
     <div class="setting-group">
-      <div class="setting-item">
-        <label>天气效果</label>
-        <select id="weather-mode" onchange="setWeatherMode(this.value)">
-          <option value="off">关闭</option>
-          <option value="random">随机</option>
-          <option value="rain">下雨</option>
-          <option value="wind">刮风</option>
-          <option value="lightning">打闪</option>
-        </select>
+      <div class="setting-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
+        <label>天气效果（可多选叠加）</label>
+        <div class="weather-toggles" id="weather-toggles">
+          <button type="button" data-weather="rain"      onclick="toggleWeatherType('rain')">🌧 下雨</button>
+          <button type="button" data-weather="wind"      onclick="toggleWeatherType('wind')">💨 刮风</button>
+          <button type="button" data-weather="lightning" onclick="toggleWeatherType('lightning')">⚡ 打闪</button>
+          <button type="button" data-weather="random"    onclick="toggleWeatherType('random')">🎲 随机</button>
+        </div>
       </div>
-      <div class="setting-item" id="weather-intensity-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+      <div class="setting-item" id="weather-intensity-item" style="flex-direction:column; align-items:flex-start; gap:12px; display:none;">
         <label>天气强度</label>
         <input type="range" id="weather-intensity" class="intensity-slider"
                min="0" max="100" value="50"
                oninput="setWeatherIntensity(this.value)">
+      </div>
+      <div class="setting-item">
+        <label>乌云遮挡视线</label>
+        <div class="switch">
+          <input type="checkbox" id="cloudy-toggle" onchange="setCloudy(this.checked)">
+          <label class="slider" for="cloudy-toggle"></label>
+        </div>
       </div>
       <div class="setting-item">
         <label>音效</label>

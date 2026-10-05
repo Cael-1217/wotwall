@@ -1,14 +1,20 @@
-// ==================== weather.js — 天气效果 ====================
+// ==================== weather.js — 天气效果（可叠加 + 乌云） ====================
 
 const WeatherState = {
-  mode: 'off',
-  intensity: 50,
-  particles: [],
-  currentType: 'rain',
-  wind: 0,
+  activeTypes: { rain: false, wind: false, lightning: false },  // 手动勾选的天气
+  randomMode: false,          // 随机模式
+  cloudy: false,              // 乌云独立开关
+  intensity: 50,              // 0-100
+
+  rainParticles: [],
+  windParticles: [],
+  clouds: [],
+
   lightning: null,
   nextLightningAt: 0,
   randomSwitchAt: 0,
+  wind: 0,
+
   canvas: null,
   ctx: null,
   rafId: null,
@@ -16,8 +22,9 @@ const WeatherState = {
   dpr: 1,
 };
 
-const WEATHER_TYPES = ['rain', 'wind', 'lightning'];
+const ALL_WEATHER = ['rain', 'wind', 'lightning'];
 
+// ==================== 初始化 ====================
 function initWeather() {
   WeatherState.canvas = document.getElementById('weather-layer');
   if (!WeatherState.canvas) return;
@@ -39,13 +46,18 @@ function resizeWeatherCanvas() {
   c.style.width = window.innerWidth + 'px';
   c.style.height = window.innerHeight + 'px';
   WeatherState.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (WeatherState.mode !== 'off') rebuildParticles();
+  if (anyWeatherActive()) rebuildParticles();
 }
 
+// ==================== 设置读写 ====================
 function loadWeatherSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('tw_weather') || '{}');
-    if (s.mode) WeatherState.mode = s.mode;
+    if (s.activeTypes && typeof s.activeTypes === 'object') {
+      for (const k of ALL_WEATHER) WeatherState.activeTypes[k] = !!s.activeTypes[k];
+    }
+    if (typeof s.randomMode === 'boolean') WeatherState.randomMode = s.randomMode;
+    if (typeof s.cloudy === 'boolean') WeatherState.cloudy = s.cloudy;
     if (typeof s.intensity === 'number') WeatherState.intensity = s.intensity;
   } catch (e) {}
 }
@@ -53,20 +65,39 @@ function loadWeatherSettings() {
 function saveWeatherSettings() {
   try {
     localStorage.setItem('tw_weather', JSON.stringify({
-      mode: WeatherState.mode,
+      activeTypes: WeatherState.activeTypes,
+      randomMode: WeatherState.randomMode,
+      cloudy: WeatherState.cloudy,
       intensity: WeatherState.intensity,
     }));
   } catch (e) {}
 }
 
+function anyWeatherActive() {
+  return WeatherState.randomMode ||
+    WeatherState.activeTypes.rain ||
+    WeatherState.activeTypes.wind ||
+    WeatherState.activeTypes.lightning ||
+    WeatherState.cloudy;
+}
+
+// ==================== UI 同步 ====================
 function syncWeatherUI() {
-  const modeSel = document.getElementById('weather-mode');
-  if (modeSel) modeSel.value = WeatherState.mode;
+  document.querySelectorAll('#weather-toggles button').forEach(b => {
+    const key = b.dataset.weather;
+    if (key === 'random') b.classList.toggle('active', WeatherState.randomMode);
+    else b.classList.toggle('active', !!WeatherState.activeTypes[key]);
+  });
+
   const slider = document.getElementById('weather-intensity');
   if (slider) slider.value = WeatherState.intensity;
   updateSliderVisual(WeatherState.intensity);
+
+  const cloudToggle = document.getElementById('cloudy-toggle');
+  if (cloudToggle) cloudToggle.checked = WeatherState.cloudy;
+
   const item = document.getElementById('weather-intensity-item');
-  if (item) item.style.display = WeatherState.mode === 'off' ? 'none' : 'flex';
+  if (item) item.style.display = anyWeatherActive() ? 'flex' : 'none';
 }
 
 function updateSliderVisual(v) {
@@ -76,8 +107,21 @@ function updateSliderVisual(v) {
   slider.style.setProperty('--intensity', ratio);
 }
 
-function setWeatherMode(mode) {
-  WeatherState.mode = mode;
+// ==================== 交互 API ====================
+function toggleWeatherType(type) {
+  if (type === 'random') {
+    WeatherState.randomMode = !WeatherState.randomMode;
+    if (WeatherState.randomMode) {
+      // 打开随机模式时，清空手选
+      WeatherState.activeTypes.rain = false;
+      WeatherState.activeTypes.wind = false;
+      WeatherState.activeTypes.lightning = false;
+    }
+  } else {
+    if (!ALL_WEATHER.includes(type)) return;
+    WeatherState.activeTypes[type] = !WeatherState.activeTypes[type];
+    if (WeatherState.activeTypes[type]) WeatherState.randomMode = false;
+  }
   saveWeatherSettings();
   syncWeatherUI();
   applyWeatherSettings();
@@ -87,44 +131,77 @@ function setWeatherIntensity(v) {
   WeatherState.intensity = +v;
   saveWeatherSettings();
   updateSliderVisual(WeatherState.intensity);
-  if (WeatherState.mode !== 'off') rebuildParticles();
+  rebuildParticles();
 }
 
+function setCloudy(v) {
+  WeatherState.cloudy = !!v;
+  saveWeatherSettings();
+  syncWeatherUI();
+  applyWeatherSettings();
+}
+
+// ==================== 应用设置 ====================
 function applyWeatherSettings() {
   const layer = WeatherState.canvas;
   if (!layer) return;
-  if (WeatherState.mode === 'off') {
+  if (!anyWeatherActive()) {
     layer.style.display = 'none';
     stopWeatherLoop();
     return;
   }
   layer.style.display = 'block';
-  WeatherState.currentType = WeatherState.mode === 'random'
-    ? WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)]
-    : WeatherState.mode;
-  WeatherState.randomSwitchAt = performance.now() + randomRange(8000, 18000);
+
+  if (WeatherState.randomMode) {
+    // 随机模式：初始化时挑一个非空组合
+    WeatherState.activeTypes.rain = Math.random() < 0.5;
+    WeatherState.activeTypes.wind = Math.random() < 0.5;
+    WeatherState.activeTypes.lightning = Math.random() < 0.4;
+    if (!WeatherState.activeTypes.rain &&
+        !WeatherState.activeTypes.wind &&
+        !WeatherState.activeTypes.lightning) {
+      WeatherState.activeTypes.rain = true;
+    }
+    WeatherState.randomSwitchAt = performance.now() + randomRange(8000, 18000);
+  }
+
   rebuildParticles();
   startWeatherLoop();
 }
 
 function randomRange(a, b) { return a + Math.random() * (b - a); }
 
+// ==================== 粒子重建 ====================
 function rebuildParticles() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const intensity = WeatherState.intensity / 100;
-  const type = WeatherState.currentType;
-  WeatherState.particles = [];
-  WeatherState.wind = (Math.random() - 0.5) * 2;
 
-  if (type === 'rain') {
+  WeatherState.wind = (Math.random() - 0.5) * 2;
+  WeatherState.rainParticles = [];
+  WeatherState.windParticles = [];
+  WeatherState.clouds = [];
+
+  if (WeatherState.activeTypes.rain) {
     const count = Math.floor(40 + intensity * 260);
-    for (let i = 0; i < count; i++) WeatherState.particles.push(makeRainDrop(w, h, intensity));
-  } else if (type === 'wind') {
+    for (let i = 0; i < count; i++) {
+      WeatherState.rainParticles.push(makeRainDrop(w, h, intensity));
+    }
+  }
+  if (WeatherState.activeTypes.wind) {
     const count = Math.floor(15 + intensity * 90);
-    for (let i = 0; i < count; i++) WeatherState.particles.push(makeWindParticle(w, h, intensity));
-  } else if (type === 'lightning') {
+    for (let i = 0; i < count; i++) {
+      WeatherState.windParticles.push(makeWindParticle(w, h, intensity));
+    }
+  }
+  if (WeatherState.activeTypes.lightning) {
     WeatherState.nextLightningAt = performance.now() + randomRange(1500, 5000 - intensity * 3000);
+  }
+  if (WeatherState.cloudy) {
+    const count = 3 + Math.floor(intensity * 7);
+    for (let i = 0; i < count; i++) {
+      WeatherState.clouds.push(makeCloud(w, h, intensity));
+    }
   }
 }
 
@@ -151,6 +228,18 @@ function makeWindParticle(w, h, intensity) {
   };
 }
 
+function makeCloud(w, h, intensity) {
+  return {
+    x: Math.random() * (w + 400) - 200,
+    y: Math.random() * h * 0.3 - 40,
+    scale: 0.7 + Math.random() * 1.1 + intensity * 0.6,
+    speed: 8 + Math.random() * 18 + intensity * 25,
+    alpha: 0.22 + intensity * 0.45 + Math.random() * 0.1,
+    puffs: 4 + Math.floor(Math.random() * 3),
+  };
+}
+
+// ==================== 主循环 ====================
 function startWeatherLoop() {
   if (WeatherState.rafId) return;
   WeatherState.lastTime = performance.now();
@@ -170,7 +259,9 @@ function stopWeatherLoop() {
   }
   const c = WeatherState.canvas;
   if (c && WeatherState.ctx) WeatherState.ctx.clearRect(0, 0, c.width, c.height);
-  WeatherState.particles = [];
+  WeatherState.rainParticles = [];
+  WeatherState.windParticles = [];
+  WeatherState.clouds = [];
   WeatherState.lightning = null;
 }
 
@@ -179,8 +270,19 @@ function updateWeather(dt, t) {
   const ctx = WeatherState.ctx;
   if (!c || !ctx) return;
 
-  if (WeatherState.mode === 'random' && t > WeatherState.randomSwitchAt) {
-    WeatherState.currentType = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)];
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  // 随机模式切换
+  if (WeatherState.randomMode && t > WeatherState.randomSwitchAt) {
+    WeatherState.activeTypes.rain = Math.random() < 0.5;
+    WeatherState.activeTypes.wind = Math.random() < 0.5;
+    WeatherState.activeTypes.lightning = Math.random() < 0.4;
+    if (!WeatherState.activeTypes.rain &&
+        !WeatherState.activeTypes.wind &&
+        !WeatherState.activeTypes.lightning) {
+      WeatherState.activeTypes.rain = true;
+    }
     WeatherState.intensity = Math.round(randomRange(25, 95));
     updateSliderVisual(WeatherState.intensity);
     const slider = document.getElementById('weather-intensity');
@@ -190,23 +292,64 @@ function updateWeather(dt, t) {
     return;
   }
 
-  const w = window.innerWidth;
-  const h = window.innerHeight;
   ctx.clearRect(0, 0, w, h);
-
-  const type = WeatherState.currentType;
   const intensity = WeatherState.intensity / 100;
 
-  if (type === 'rain') drawRain(ctx, dt, w, h, intensity);
-  else if (type === 'wind') drawWind(ctx, dt, w, h, intensity);
-  else if (type === 'lightning') drawLightning(ctx, t, w, h, intensity);
+  // 图层顺序：乌云（底层）→ 雨 → 风 → 闪电（顶层）
+  if (WeatherState.cloudy) drawClouds(ctx, dt, w, h, intensity);
+  if (WeatherState.activeTypes.rain) drawRain(ctx, dt, w, h, intensity);
+  if (WeatherState.activeTypes.wind) drawWind(ctx, dt, w, h, intensity);
+  if (WeatherState.activeTypes.lightning) drawLightning(ctx, t, w, h, intensity);
 }
 
+// ==================== 乌云 ====================
+function drawClouds(ctx, dt, w, h, intensity) {
+  const isLight = document.documentElement.classList.contains('light');
+  for (const c of WeatherState.clouds) {
+    c.x += c.speed * dt;
+    if (c.x > w + 400) {
+      c.x = -400;
+      c.y = Math.random() * h * 0.3 - 40;
+    }
+    drawCloudPuff(ctx, c, isLight);
+  }
+}
+
+function drawCloudPuff(ctx, c, isLight) {
+  const baseR = 70 * c.scale;
+  const color = isLight
+    ? `rgba(90, 95, 110, ${c.alpha})`
+    : `rgba(8, 8, 14, ${c.alpha})`;
+
+  ctx.fillStyle = color;
+  ctx.beginPath();
+
+  const puffs = [
+    { dx: 0,                    dy: 0,                r: baseR },
+    { dx: -baseR * 0.85,        dy: baseR * 0.25,     r: baseR * 0.75 },
+    { dx:  baseR * 0.85,        dy: baseR * 0.20,     r: baseR * 0.80 },
+    { dx: -baseR * 1.55,        dy: baseR * 0.50,     r: baseR * 0.55 },
+    { dx:  baseR * 1.60,        dy: baseR * 0.45,     r: baseR * 0.60 },
+    { dx: -baseR * 0.30,        dy: -baseR * 0.40,    r: baseR * 0.62 },
+    { dx:  baseR * 0.40,        dy: -baseR * 0.35,    r: baseR * 0.58 },
+  ];
+  const use = puffs.slice(0, c.puffs + 1);
+
+  for (const p of use) {
+    const cx = c.x + p.dx;
+    const cy = c.y + p.dy;
+    ctx.moveTo(cx + p.r, cy);
+    ctx.arc(cx, cy, p.r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
+// ==================== 雨 ====================
 function drawRain(ctx, dt, w, h, intensity) {
   const windX = WeatherState.wind * intensity * 200;
   const color = 'rgba(180, 205, 230, ';
   ctx.lineCap = 'round';
-  for (const p of WeatherState.particles) {
+  for (const p of WeatherState.rainParticles) {
     p.y += p.speed * dt;
     p.x += windX * dt;
     if (p.y > h + 30 || p.x < -50 || p.x > w + 50) {
@@ -223,10 +366,11 @@ function drawRain(ctx, dt, w, h, intensity) {
   }
 }
 
+// ==================== 风 ====================
 function drawWind(ctx, dt, w, h, intensity) {
   ctx.lineCap = 'round';
   const baseColor = 'rgba(220, 220, 230, ';
-  for (const p of WeatherState.particles) {
+  for (const p of WeatherState.windParticles) {
     p.x += p.speed * dt;
     p.y += Math.sin((p.x + p.len) * 0.01) * p.drift * dt;
     if (p.x > w + 200) {
@@ -244,6 +388,7 @@ function drawWind(ctx, dt, w, h, intensity) {
   }
 }
 
+// ==================== 闪电 ====================
 function drawLightning(ctx, t, w, h, intensity) {
   if (!WeatherState.lightning && t >= WeatherState.nextLightningAt) {
     WeatherState.lightning = {
