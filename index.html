@@ -13,6 +13,8 @@
   <div class="loading-logo">Tanks<span>Wall</span></div>
 </div>
 
+<canvas id="weather-layer"></canvas>
+
 <header>
   <div class="brand">
     <h1>Tanks<span>Wall</span></h1>
@@ -343,6 +345,32 @@
     </div>
 
     <div class="setting-group">
+      <div class="setting-item">
+        <label>天气效果</label>
+        <select id="weather-mode" onchange="setWeatherMode(this.value)">
+          <option value="off">关闭</option>
+          <option value="random">随机</option>
+          <option value="rain">下雨</option>
+          <option value="wind">刮风</option>
+          <option value="lightning">打闪</option>
+        </select>
+      </div>
+      <div class="setting-item" id="weather-intensity-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+        <label>天气强度</label>
+        <input type="range" id="weather-intensity" class="intensity-slider"
+               min="0" max="100" value="50"
+               oninput="setWeatherIntensity(this.value)">
+      </div>
+      <div class="setting-item">
+        <label>音效</label>
+        <div class="switch">
+          <input type="checkbox" id="sound-toggle" checked onchange="toggleSound(this.checked)">
+          <label class="slider" for="sound-toggle"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="setting-group">
       <div class="setting-item" id="changelog-entry" style="cursor:pointer;" onclick="openChangelog()">
         <label>更新日志</label>
         <span style="color:var(--text-dim); font-size:13px;">查看 →</span>
@@ -406,7 +434,6 @@
   <div class="lb-counter" id="lb-counter"></div>
 </div>
 
-<!-- 更新日志：右下角浮窗 -->
 <div id="changelog-toast" class="cl-toast">
   <div class="cl-toast-header">
     <span class="cl-toast-badge">更新</span>
@@ -417,7 +444,6 @@
   <button class="cl-toast-btn" onclick="openChangelog()">查看完整日志</button>
 </div>
 
-<!-- 更新日志：完整弹窗 -->
 <div id="changelog-modal" class="modal">
   <div class="modal-box">
     <div class="modal-header">
@@ -434,7 +460,6 @@
   </svg>
 </button>
 
-<!-- 彩蛋：破坏模式 -->
 <button id="destroy-egg-btn" class="destroy-egg-btn" onclick="enterDestroyMode()" aria-label="破坏模式">破 坏</button>
 
 <div id="destroy-bar" class="destroy-bar">
@@ -446,6 +471,16 @@
 <script src="data.js"></script>
 <script src="changelog.js"></script>
 <script src="utils.js"></script>
+<script src="config.js"></script>
+<script src="theme.js"></script>
+<script src="navigation.js"></script>
+<script src="browse.js"></script>
+<script src="user.js"></script>
+<script src="submit.js"></script>
+<script src="tools.js"></script>
+<script src="destroy.js"></script>
+<script src="weather.js"></script>
+<script src="audio.js"></script>
 <script src="app.js"></script>
 <script src="share.js"></script>
 </body>
