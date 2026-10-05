@@ -32,6 +32,7 @@ function logout() {
   if (regTool) regTool.style.display = 'block';
   $('user-info').style.display = 'none';
   if (state.currentPage === 'submit-page') updateSubmitVisibility();
+  if (typeof updateAdminConsole === 'function') updateAdminConsole();
 }
 function showUserUI() {
   $('login-box').style.display = 'none';
@@ -45,6 +46,7 @@ function showUserUI() {
   if (author) $('user-avatar').src = author.avatar;
   updateFavUI();
   if (state.currentPage === 'submit-page') updateSubmitVisibility();
+  if (typeof updateAdminConsole === 'function') updateAdminConsole();
 }
 function updateSubmitVisibility() {
   const logged = !!state.currentUser;

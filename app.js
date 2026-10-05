@@ -26,6 +26,7 @@
   initWeather();
   initAudio();
   if (typeof setupChangelogUI === 'function') setupChangelogUI();
+  if (typeof initAdminConsole === 'function') initAdminConsole();
   checkHash();
 
   if (typeof shouldShowChangelog === 'function' && shouldShowChangelog()) {
