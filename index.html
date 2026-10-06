@@ -319,12 +319,23 @@
           <button type="button" data-theme="auto" onclick="setTheme('auto')">跟随系统</button>
         </div>
       </div>
+      <div id="settings-page" class="page-content">
+    <div class="setting-group">
+      <div class="setting-item">
+        <label>外观</label>
+        <div class="segmented" id="theme-seg">
+          <button type="button" data-theme="dark" onclick="setTheme('dark')">深色</button>
+          <button type="button" data-theme="light" onclick="setTheme('light')">浅色</button>
+          <button type="button" data-theme="auto" onclick="setTheme('auto')">跟随系统</button>
+        </div>
+      </div>
       <div class="setting-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
         <label>主题色</label>
         <div class="accent-picker" id="accent-picker">
           <button type="button" data-accent="gold"   style="background:#c9a860" title="金"></button>
           <button type="button" data-accent="blue"   style="background:#4a90e2" title="蓝"></button>
-          <button type="button" data-accent="green"  style="background:#5aa860" title="绿"></button="button" data-accent="purple" style="background:#a06ac0" title="紫"></button>
+          <button type="button" data-accent="green"  style="background:#5aa860" title="绿"></button>
+          <button type="button" data-accent="purple" style="background:#a06ac0" title="紫"></button>
           <button type="button" data-accent="red"    style="background:#c05a5a" title="红"></button>
         </div>
       </div>
