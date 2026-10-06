@@ -8,7 +8,8 @@ const members = {
     "xian": { username: "Xian", password: "Xian1112", role: "member", nickname: "仙仙大统领" },
     "445": { username: "445", password: "Draw445", role: "member", nickname: "445" },
     "lhmx": { username: "LHMX", password: "CitiesXL2012", role: "member", nickname: "凌寒沐雪" },
-    "tiger": { username: "tiger", password: "tigerC", role: "member", nickname: "湾仔虎" }
+    "tiger": { username: "tiger", password: "tigerC", role: "member", nickname: "湾仔虎" },
+    "neparako":{ username:"neparako", password:"qw7845kl", role:"member", nickname:"neparako" }
 };
 
 // 创作者数据库
