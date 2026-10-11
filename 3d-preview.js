@@ -1,4 +1,4 @@
-// ==================== 3d-preview.js — 实验性 3D 概览 ====================
+// ==================== 3d-preview.js — 实验性 3D 概览 (多部件版) ====================
 // 用 Three.js + OpenCV.js 在浏览器本地把图纸轮廓"拉伸"成灰色 2.5D 模型
 // 仅用于视觉预览，不导出、不上传
 
@@ -20,10 +20,14 @@
     groundObjects: [],
   };
 
-const LIB_CDNS = {
-    three: 'three.min.js',
-    orbit: 'OrbitControls.js',
-    opencv: 'opencv.js',
+  // ---------- 库文件路径 ----------
+  // ⚠️ 请根据你上传的实际位置修改这里：
+  // 如果三个文件在仓库根目录，就用 'opencv.js' 
+  // 如果三个文件在 libs 文件夹里，就用 'libs/opencv.js'
+  const LIB_CDNS = {
+    three: 'three.min.js',       // 对应根目录的 three.min.js
+    orbit: 'OrbitControls.js',   // 对应根目录的 OrbitControls.js
+    opencv: 'opencv.js',         // 对应根目录的 opencv.js
   };
 
   // ---------- 按需加载脚本 ----------
@@ -45,7 +49,8 @@ const LIB_CDNS = {
     });
   }
 
-function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
+  // ---------- 兼容 Promise 的 OpenCV 等待函数 ----------
+  function waitForCvReady(timeout = 180000) {
     return new Promise((resolve, reject) => {
       const start = Date.now();
       
@@ -83,9 +88,9 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
         try { await loadScriptOnce(LIB_CDNS.orbit); } catch (e) { /* 可选 */ }
       }
       if (!window.cv) {
-        set3DLoadingMsg('正在加载图像识别模块（约 8MB，首次较慢）…');
+        set3DLoadingMsg('正在加载图像识别模块（约 12MB，首次较慢，请保持屏幕常亮）…');
         await loadScriptOnce(LIB_CDNS.opencv);
-        set3DLoadingMsg('正在初始化图像识别…');
+        set3DLoadingMsg('正在初始化图像识别（编译中，约 1 分钟）…');
         await waitForCvReady();
       }
       Three3D.loaded = true;
@@ -360,7 +365,7 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
     }
   }
 
-  // ---------- 轮廓提取 ----------
+  // ---------- 轮廓提取（改为提取多个部件） ----------
   function extractContourPoints(img) {
     const maxW = 1000;
     let w = img.width, h = img.height;
@@ -384,121 +389,142 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
     let contours = new cv.MatVector();
     let hierarchy = new cv.Mat();
     let kernel = null;
-    let approx = null;
+    let results = []; // 存放多个部件
 
     try {
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
       cv.threshold(gray, binary, 235, 255, cv.THRESH_BINARY_INV);
 
-      kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+      // 改用 3x3 的核，不要抹掉太多细节（比如炮管和履带缝隙）
+      kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
       cv.morphologyEx(binary, opened, cv.MORPH_OPEN, kernel);
 
       cv.findContours(opened, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-      let maxArea = 0, maxIdx = -1;
+      const totalArea = w * h;
+      // 过滤掉太小的轮廓（灰尘、文字），保留主要部件
+      const minArea = totalArea * 0.005; 
+
+      // 找出所有符合面积的轮廓，按面积从大到小排序
+      let contourIndices = [];
       for (let i = 0; i < contours.size(); i++) {
-        const a = cv.contourArea(contours.get(i));
-        if (a > maxArea) { maxArea = a; maxIdx = i; }
+        const area = cv.contourArea(contours.get(i));
+        if (area > minArea) {
+          contourIndices.push({ i, area });
+        }
       }
-      if (maxIdx === -1) return null;
+      contourIndices.sort((a, b) => b.area - a.area); // 面积降序
 
-      const contour = contours.get(maxIdx);
-      approx = new cv.Mat();
-      cv.approxPolyDP(contour, approx, 3, true);
+      // 最多取前 5 个大部件（车体、炮塔、炮管等）
+      const maxParts = Math.min(contourIndices.length, 5);
+      const scale = 6 / Math.max(w, h);
 
-      const rect = cv.boundingRect(approx);
-      if (rect.width < 20 || rect.height < 20) return null;
+      for (let k = 0; k < maxParts; k++) {
+        const idx = contourIndices[k].i;
+        const contour = contours.get(idx);
+        const approx = new cv.Mat();
+        cv.approxPolyDP(contour, approx, 2, true); // 精度调高一点
 
-      const maxDim = Math.max(rect.width, rect.height);
-      const scale = 6 / maxDim;
+        const rect = cv.boundingRect(approx);
+        if (rect.width < 10 || rect.height < 10) continue;
 
-      const points = [];
-      for (let i = 0; i < approx.rows; i++) {
-        const px = approx.data32S[i * 2];
-        const py = approx.data32S[i * 2 + 1];
-        points.push({
-          x: (px - rect.x) * scale,
-          y: -(py - rect.y) * scale,
+        const points = [];
+        for (let i = 0; i < approx.rows; i++) {
+          const px = approx.data32S[i * 2];
+          const py = approx.data32S[i * 2 + 1];
+          points.push({
+            x: (px - rect.x) * scale,
+            y: -(py - rect.y) * scale,
+          });
+        }
+
+        // 计算此部件的中心点和尺寸
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const p of points) {
+          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+        }
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        
+        results.push({
+          points: points.map(p => ({ x: p.x - cx, y: p.y - cy })),
+          width: maxX - minX,
+          height: maxY - minY,
+          area: contourIndices[k].area
         });
+        approx.delete();
       }
 
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const p of points) {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      }
-      const cx = (minX + maxX) / 2;
-      const cy = (minY + maxY) / 2;
-      const widthUnits = maxX - minX;
-      const heightUnits = maxY - minY;
-
-      return {
-        points: points.map(p => ({ x: p.x - cx, y: p.y - cy })),
-        width: widthUnits,
-        height: heightUnits,
-      };
+      // 按面积排序，最大的车体在最底层
+      return results;
     } finally {
       src.delete(); gray.delete(); binary.delete();
       opened.delete(); contours.delete(); hierarchy.delete();
       if (kernel) kernel.delete();
-      if (approx) approx.delete();
     }
   }
 
-  // ---------- 构建网格 ----------
-  function build3DMesh(contourData) {
+  // ---------- 构建网格（组合多个部件） ----------
+  function build3DMesh(contourDataArray) {
     if (Three3D.currentMesh) {
       Three3D.scene.remove(Three3D.currentMesh);
-      if (Three3D.currentMesh.geometry) Three3D.currentMesh.geometry.dispose();
-      if (Three3D.currentMesh.material) Three3D.currentMesh.material.dispose();
+      Three3D.currentMesh.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
       Three3D.currentMesh = null;
     }
 
-    const { points, width, height } = contourData;
-    if (!points || points.length < 3) return;
+    if (!contourDataArray || contourDataArray.length === 0) return;
 
-    const depth = width * 0.47;
+    const group = new THREE.Group();
 
-    const shape = new THREE.Shape();
-    shape.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      shape.lineTo(points[i].x, points[i].y);
-    }
-    shape.closePath();
+    // 最大的作为主体，其余部件拉伸深度稍微调整
+    contourDataArray.forEach((data, index) => {
+      const { points, width, height } = data;
+      if (points.length < 3) return;
 
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: depth,
-      bevelEnabled: false,
-      curveSegments: 2,
+      // 主体拉伸深一点，炮塔等附属部件窄一点，制造层次感
+      let depth = width * 0.47;
+      if (index > 0) depth *= 0.8; 
+
+      const shape = new THREE.Shape();
+      shape.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        shape.lineTo(points[i].x, points[i].y);
+      }
+      shape.closePath();
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: depth,
+        bevelEnabled: false,
+        curveSegments: 2,
+      });
+
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xb8b8bc,
+        roughness: 0.88,
+        metalness: 0.05,
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      // 让不同的部件前后稍微错开一点，看起来更有立体感
+      mesh.position.z = (index % 2 === 0) ? 0 : 0.2; 
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
     });
 
-    geometry.computeBoundingBox();
-    const b = geometry.boundingBox;
-    geometry.translate(
-      -(b.max.x + b.min.x) / 2,
-      -(b.max.y + b.min.y) / 2,
-      -(b.max.z + b.min.z) / 2
-    );
+    // 计算整个组的包围盒，居中
+    const box = new THREE.Box3().setFromObject(group);
+    const center = box.getCenter(new THREE.Vector3());
+    group.position.sub(center);
 
-    geometry.computeVertexNormals();
+    Three3D.scene.add(group);
+    Three3D.currentMesh = group;
 
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xb8b8bc,
-      roughness: 0.88,
-      metalness: 0.05,
-      flatShading: false,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    Three3D.scene.add(mesh);
-    Three3D.currentMesh = mesh;
-
-    // 把地面/网格放在模型底部
-    const bottomY = -height / 2 - 0.01;
+    const bottomY = box.min.y - center.y - 0.01;
     Three3D.groundObjects.forEach(obj => {
       obj.position.y = bottomY;
     });
@@ -558,8 +584,10 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
 
     if (Three3D.currentMesh) {
       Three3D.scene.remove(Three3D.currentMesh);
-      if (Three3D.currentMesh.geometry) Three3D.currentMesh.geometry.dispose();
-      if (Three3D.currentMesh.material) Three3D.currentMesh.material.dispose();
+      Three3D.currentMesh.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
       Three3D.currentMesh = null;
     }
 
@@ -573,7 +601,7 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
       return;
     }
 
-// 2) 加载图纸（优先使用 img3D 指定的图纸）
+    // 2) 加载图纸（优先使用 img3D 指定的图纸）
     show3DLoading('正在读取图纸…');
     const imgUrl = tank.img3D || tank.imgs[0]; // 如果指定了 img3D 就用它，否则用第一张
     let img;
@@ -596,8 +624,8 @@ function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
       return;
     }
 
-    if (!contourData || !contourData.points || contourData.points.length < 3) {
-      show3DError('未能识别出坦克轮廓，可能图纸对比度太低或格式不兼容');
+    if (!contourData || contourData.length === 0) {
+      show3DError('未能识别出有效轮廓，可能图纸对比度太低或格式不兼容');
       return;
     }
 
