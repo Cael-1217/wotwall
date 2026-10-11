@@ -45,16 +45,28 @@ const LIB_CDNS = {
     });
   }
 
-  function waitForCvReady(timeout) {
-    timeout = timeout || 60000;
+function waitForCvReady(timeout = 180000) { // 延长到 3 分钟
     return new Promise((resolve, reject) => {
       const start = Date.now();
+      
+      // 处理 cv 是 Promise 的情况（12.68MB 的 NPM 包通常是这种方式）
+      if (window.cv && typeof window.cv.then === 'function') {
+        window.cv.then((cvInstance) => {
+          window.cv = cvInstance; // 替换为实际可用的 cv 实例
+          resolve();
+        }).catch(reject);
+        return;
+      }
+
+      // 传统方式：轮询检查 cv 对象是否就绪
       const check = () => {
         if (window.cv && typeof window.cv.Mat === 'function' && typeof window.cv.imread === 'function') {
           return resolve();
         }
-        if (Date.now() - start > timeout) return reject(new Error('OpenCV 初始化超时'));
-        setTimeout(check, 200);
+        if (Date.now() - start > timeout) {
+          return reject(new Error('OpenCV 初始化超时，可能是手机性能不足或缓存未刷新'));
+        }
+        setTimeout(check, 500);
       };
       check();
     });
@@ -561,14 +573,15 @@ const LIB_CDNS = {
       return;
     }
 
-    // 2) 加载图纸
+// 2) 加载图纸（优先使用 img3D 指定的图纸）
     show3DLoading('正在读取图纸…');
+    const imgUrl = tank.img3D || tank.imgs[0]; // 如果指定了 img3D 就用它，否则用第一张
     let img;
     try {
       if (typeof loadImageFromUrl !== 'function') throw new Error('工具函数未加载');
-      img = await loadImageFromUrl(tank.imgs[0]);
+      img = await loadImageFromUrl(imgUrl);
     } catch (e) {
-      show3DError('图纸加载失败：' + (e.message || tank.imgs[0]));
+      show3DError('图纸加载失败：' + (e.message || imgUrl));
       return;
     }
 
