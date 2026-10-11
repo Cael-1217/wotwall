@@ -20,10 +20,10 @@
     groundObjects: [],
   };
 
-  const LIB_CDNS = {
-    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-    orbit: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js',
-    opencv: 'https://docs.opencv.org/4.5.5/opencv.js',
+const LIB_CDNS = {
+    three: 'three.min.js',
+    orbit: 'OrbitControls.js',
+    opencv: 'opencv.js',
   };
 
   // ---------- 按需加载脚本 ----------
