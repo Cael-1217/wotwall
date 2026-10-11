@@ -1,4 +1,4 @@
-// ==================== find-tank-game.js — 寻找坦克 3D v2 ====================
+// ==================== find-tank-game.js — 寻找坦克 3D v3 ====================
 
 /* ==================== 全局状态 ==================== */
 const GameState = {
@@ -7,12 +7,13 @@ const GameState = {
   currentTheme: 'summer',
   currentMap: 'forest',
   targetTank: null,
+  targetType: 'MBT',
   objects: [],
   panel: null,
   dirLight: null, ambientLight: null, hemiLight: null,
   starting: false,
 
-  phase: 'menu',           // menu | playing | won
+  phase: 'menu',
   startTime: 0, elapsed: 0,
   level: 1, locked: false,
 
@@ -23,15 +24,17 @@ const GameState = {
   pointerDown: null,
 
   terrainAmp: 3,
-  terrainSize: 200,
+  terrainSize: 400,   // ← 地图放大到 400×400
+  streetPeriod: 50,   // ← 街区周期
+  streetWidth: 9,     // ← 街道宽度
 
-  texPool: [],
+  occupiedBoxes: [],  // ← 建筑占位 AABB 列表
+  texCache: {},
 };
 
-/* ==================== 库路径 ==================== */
 const GAME_LIB_PATHS = { three: 'three.min.js', orbit: 'OrbitControls.js' };
 
-/* ==================== 工具函数 ==================== */
+/* ==================== 工具 ==================== */
 function _nextFrame() {
   return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
@@ -67,9 +70,10 @@ function getCardInfoSafe(t) {
   try { return (typeof getCardInfoText === 'function') ? getCardInfoText(t) : ''; }
   catch { return ''; }
 }
-function esc(s) {
-  return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s);
-}
+function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s); }
+function rand(a, b) { return a + Math.random() * (b - a); }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 /* ==================== 1. 面板 ==================== */
 function initFindTankGame() {
@@ -80,7 +84,6 @@ function initFindTankGame() {
   panel.style.cssText = 'position:fixed;inset:0;z-index:400;background:#0b0b0e;display:none;flex-direction:column;overflow:hidden;';
 
   panel.innerHTML = `
-    <!-- HUD -->
     <div id="ftg-hud" style="display:none;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top));background:linear-gradient(to bottom,rgba(10,10,14,0.96),rgba(10,10,14,0.72));color:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0;z-index:5;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
         <span>🎯 <b id="ftg-level" style="color:#ffd83a;">1</b></span>
@@ -97,7 +100,6 @@ function initFindTankGame() {
       <div id="ftg-error" style="display:none;position:absolute;inset:0;z-index:10;align-items:center;justify-content:center;background:rgba(11,11,14,0.94);color:#ff8a8a;font-size:14px;padding:24px;text-align:center;white-space:pre-wrap;line-height:1.6;"></div>
     </div>
 
-    <!-- 主菜单 -->
     <div id="ftg-menu" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%, #1c2028, #0b0b0e 70%);color:#fff;padding:24px;text-align:center;">
       <div style="font-size:52px;margin-bottom:8px;filter:drop-shadow(0 6px 20px rgba(255,216,58,0.35));">🎯</div>
       <h1 style="margin:0;font-size:32px;font-weight:800;letter-spacing:-0.02em;background:linear-gradient(135deg,#ffd83a,#c9a860);-webkit-background-clip:text;background-clip:text;color:transparent;">寻找坦克</h1>
@@ -109,8 +111,7 @@ function initFindTankGame() {
       <div id="ftg-menu-status" style="color:#8a8a92;font-size:12px;margin-top:20px;height:16px;"></div>
     </div>
 
-    <!-- 结算 -->
-    <div id="ftg-result" style="position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%, rgba(28,32,40,0.97), rgba(11,11,14,0.99));color:#fff;padding:24px;text-align:center;">
+    <div id="ftg-result" style="position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%, rgba(28,32,40,0.97), rgba(11,11,14,0.99));color:#fff;padding:24px;text-align:center;overflow-y:auto;">
       <div style="font-size:44px;margin-bottom:6px;">🎉</div>
       <h2 style="margin:0 0 6px;font-size:26px;font-weight:800;color:#ffd83a;">找到了！</h2>
       <p style="color:#8a8a92;font-size:13px;margin:0 0 18px;" id="ftg-result-tankname">—</p>
@@ -134,7 +135,6 @@ function initFindTankGame() {
   document.body.appendChild(panel);
   GameState.panel = panel;
 
-  // 事件绑定
   panel.querySelector('#ftg-btn-quit').addEventListener('click', closeFindTankGame);
   panel.querySelector('#ftg-btn-restart').addEventListener('click', () => beginLevel(true));
   panel.querySelector('#ftg-btn-menu-quit').addEventListener('click', closeFindTankGame);
@@ -145,7 +145,6 @@ function initFindTankGame() {
   });
   panel.querySelector('#ftg-btn-result-quit').addEventListener('click', closeFindTankGame);
 
-  // 画布点击
   const wrap = panel.querySelector('#game-canvas-wrap');
   wrap.addEventListener('pointerdown', e => {
     GameState.pointerDown = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -155,12 +154,11 @@ function initFindTankGame() {
     GameState.pointerDown = null;
     if (!pd) return;
     const dx = e.clientX - pd.x, dy = e.clientY - pd.y;
-    if (dx * dx + dy * dy > 36) return;   // 拖动，不算点击
+    if (dx * dx + dy * dy > 36) return;
     if (performance.now() - pd.t > 600) return;
     handleCanvasClick(e.clientX, e.clientY);
   });
 
-  // 窗口尺寸同步
   window.addEventListener('resize', () => {
     if (panel.style.display !== 'none') updateViewport();
   });
@@ -179,8 +177,7 @@ async function startFindTankGame() {
   panel.style.display = 'flex';
   showMenu();
   document.body.style.overflow = 'hidden';
-  // 提前预加载
-  try { await ensureThreeLibs(); } catch (e) { /* 菜单阶段忽略 */ }
+  try { await ensureThreeLibs(); } catch (e) {}
 }
 
 function showMenu() {
@@ -192,7 +189,6 @@ function showMenu() {
   p.querySelector('#ftg-error').style.display = 'none';
   p.querySelector('#ftg-menu-status').textContent = '';
   if (GameState.animId) stopGameLoop();
-  // 清空场景
   if (GameState.scene) clearScene();
 }
 
@@ -261,8 +257,8 @@ function initThreeScene() {
     GameState.scene = new THREE.Scene();
     GameState.scene.background = new THREE.Color(0x87ceeb);
 
-    GameState.camera = new THREE.PerspectiveCamera(58, 1, 0.5, 800);
-    GameState.camera.position.set(0, 65, 85);
+    GameState.camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1200);
+    GameState.camera.position.set(0, 95, 130);
 
     GameState.renderer = new THREE.WebGLRenderer({ antialias: true });
     GameState.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -275,13 +271,12 @@ function initThreeScene() {
       GameState.controls.enableDamping = true;
       GameState.controls.dampingFactor = 0.08;
       GameState.controls.maxPolarAngle = Math.PI / 2 - 0.02;
-      GameState.controls.minDistance = 15;
-      GameState.controls.maxDistance = 220;
+      GameState.controls.minDistance = 25;
+      GameState.controls.maxDistance = 380;
       GameState.controls.target.set(0, 0, 0);
       GameState.controls.update();
     }
 
-    // 光照
     GameState.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 0.5);
     GameState.scene.add(GameState.hemiLight);
 
@@ -289,18 +284,18 @@ function initThreeScene() {
     GameState.scene.add(GameState.ambientLight);
 
     GameState.dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
-    GameState.dirLight.position.set(60, 90, 40);
+    GameState.dirLight.position.set(80, 120, 60);
     GameState.dirLight.castShadow = true;
     GameState.dirLight.shadow.mapSize.width = 2048;
     GameState.dirLight.shadow.mapSize.height = 2048;
-    const d = 110;
+    const d = 200;
     GameState.dirLight.shadow.camera.left = -d;
     GameState.dirLight.shadow.camera.right = d;
     GameState.dirLight.shadow.camera.top = d;
     GameState.dirLight.shadow.camera.bottom = -d;
     GameState.dirLight.shadow.camera.near = 1;
-    GameState.dirLight.shadow.camera.far = 400;
-    GameState.dirLight.shadow.bias = -0.0005;
+    GameState.dirLight.shadow.camera.far = 600;
+    GameState.dirLight.shadow.bias = -0.0006;
     GameState.scene.add(GameState.dirLight);
     GameState.scene.add(GameState.dirLight.target);
 
@@ -339,8 +334,7 @@ function clearScene() {
         if (c.material) {
           const mats = Array.isArray(c.material) ? c.material : [c.material];
           mats.forEach(m => {
-            if (m.map) m.map.dispose();
-            if (m.emissiveMap) m.emissiveMap.dispose();
+            // 不 dispose 缓存的纹理
             m.dispose();
           });
         }
@@ -350,6 +344,7 @@ function clearScene() {
   GameState.objects = [];
   GameState.targetTank = null;
   GameState.winState = null;
+  GameState.occupiedBoxes = [];
 
   if (GameState.particleObj) {
     GameState.scene.remove(GameState.particleObj);
@@ -358,6 +353,14 @@ function clearScene() {
     GameState.particleObj = null;
   }
   GameState.particleType = null;
+
+  // 清理导弹尾迹
+  if (GameState.missileTrail) {
+    GameState.scene.remove(GameState.missileTrail);
+    GameState.missileTrail.geometry.dispose();
+    GameState.missileTrail.material.dispose();
+    GameState.missileTrail = null;
+  }
 }
 
 /* ==================== 6. 地形高度 ==================== */
@@ -365,13 +368,310 @@ function terrainHeight(x, z) {
   const a = GameState.terrainAmp;
   if (a <= 0.01) return 0;
   return (
-    Math.sin(x * 0.035) * Math.cos(z * 0.035) * a +
-    Math.sin(x * 0.085 + 1.3) * Math.cos(z * 0.075 + 0.6) * a * 0.55 +
-    Math.sin(x * 0.18 + 2.1) * Math.cos(z * 0.2 + 1.9) * a * 0.28
+    Math.sin(x * 0.018) * Math.cos(z * 0.018) * a +
+    Math.sin(x * 0.045 + 1.3) * Math.cos(z * 0.038 + 0.6) * a * 0.55 +
+    Math.sin(x * 0.09 + 2.1) * Math.cos(z * 0.1 + 1.9) * a * 0.28
   );
 }
 
-/* ==================== 7. 生成地图 ==================== */
+/* ==================== 7. 地面纹理 ==================== */
+function makeGroundTexture(mapType, colorHex) {
+  const key = `ground_${mapType}_${colorHex}_${GameState.currentTheme}`;
+  if (GameState.texCache[key]) return GameState.texCache[key];
+
+  const size = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  const baseColor = new THREE.Color(colorHex);
+  ctx.fillStyle = '#' + baseColor.getHexString();
+  ctx.fillRect(0, 0, size, size);
+
+  // 柔和噪点（分两层）
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const data = imgData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 18;
+    data[i] = Math.max(0, Math.min(255, data[i] + n));
+    data[i+1] = Math.max(0, Math.min(255, data[i+1] + n));
+    data[i+2] = Math.max(0, Math.min(255, data[i+2] + n));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // 城市 / 工厂：画街道网格
+  if (mapType === 'city' || mapType === 'factory') {
+    const mapSize = GameState.terrainSize;
+    const scale = size / mapSize;
+    const period = GameState.streetPeriod;
+    const sw = GameState.streetWidth;
+
+    // 草地/泥土底色 → 沥青
+    const asphalt = GameState.currentTheme === 'rain' ? '#1e2026'
+                  : GameState.currentTheme === 'snow_night' ? '#3a3f4a'
+                  : '#2a2c30';
+    ctx.fillStyle = asphalt;
+
+    // 垂直街道
+    for (let wx = -mapSize/2 + period; wx < mapSize/2; wx += period) {
+      const px = (wx + mapSize/2) * scale;
+      const w = sw * scale;
+      ctx.fillRect(px - w/2, 0, w, size);
+    }
+    // 水平街道
+    for (let wz = -mapSize/2 + period; wz < mapSize/2; wz += period) {
+      const pz = (wz + mapSize/2) * scale;
+      const h = sw * scale;
+      ctx.fillRect(0, pz - h/2, size, h);
+    }
+
+    // 人行道边框（略亮）
+    ctx.strokeStyle = GameState.currentTheme === 'rain' ? '#3a3e46'
+                    : GameState.currentTheme === 'snow_night' ? '#5a6070'
+                    : '#44464c';
+    ctx.lineWidth = Math.max(1, 2 * scale);
+    for (let wx = -mapSize/2 + period; wx < mapSize/2; wx += period) {
+      const px = (wx + mapSize/2) * scale;
+      const w = sw * scale;
+      ctx.strokeRect(px - w/2, 0, w, size);
+    }
+    for (let wz = -mapSize/2 + period; wz < mapSize/2; wz += period) {
+      const pz = (wz + mapSize/2) * scale;
+      const h = sw * scale;
+      ctx.strokeRect(0, pz - h/2, size, h);
+    }
+
+    // 道路中线（虚线）
+    ctx.strokeStyle = 'rgba(220, 200, 130, 0.28)';
+    ctx.lineWidth = Math.max(1, 1.2 * scale);
+    ctx.setLineDash([6 * scale, 8 * scale]);
+    for (let wx = -mapSize/2 + period; wx < mapSize/2; wx += period) {
+      const px = (wx + mapSize/2) * scale;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, size);
+      ctx.stroke();
+    }
+    for (let wz = -mapSize/2 + period; wz < mapSize/2; wz += period) {
+      const pz = (wz + mapSize/2) * scale;
+      ctx.beginPath();
+      ctx.moveTo(0, pz);
+      ctx.lineTo(size, pz);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = 4;
+  GameState.texCache[key] = tex;
+  return tex;
+}
+
+/* ==================== 8. 建筑纹理（更精细） ==================== */
+function makeBuildingTexture(kind) {
+  const theme = GameState.currentTheme;
+  const key = `bld_${kind}_${theme}`;
+  if (GameState.texCache[key]) return GameState.texCache[key];
+
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  const isNight = theme === 'snow_night';
+  const isRain = theme === 'rain';
+
+  // 基础色（不同建筑风格）
+  let baseCol;
+  if (kind === 'office') {
+    baseCol = isNight ? '#2a3040' : isRain ? '#3e444e' : '#586070';
+  } else if (kind === 'residential') {
+    baseCol = isNight ? '#3a3430' : isRain ? '#4a4440' : '#8a8078';
+  } else if (kind === 'mall') {
+    baseCol = isNight ? '#30303a' : isRain ? '#404048' : '#787a80';
+  } else {
+    baseCol = isNight ? '#2e2e38' : isRain ? '#3e3e44' : '#6c6c72';
+  }
+
+  ctx.fillStyle = baseCol;
+  ctx.fillRect(0, 0, size, size);
+
+  // 建筑表面细微纹理
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const data = imgData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 10;
+    data[i] = Math.max(0, Math.min(255, data[i] + n));
+    data[i+1] = Math.max(0, Math.min(255, data[i+1] + n));
+    data[i+2] = Math.max(0, Math.min(255, data[i+2] + n));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // 窗户
+  if (kind === 'office') {
+    // 写字楼：水平玻璃条带
+    const floors = 12;
+    const fh = size / floors;
+    for (let i = 0; i < floors; i++) {
+      const y = i * fh + 2;
+      const h = fh - 5;
+      // 玻璃底色
+      const grad = ctx.createLinearGradient(0, y, 0, y + h);
+      if (isNight) {
+        grad.addColorStop(0, '#4a5568');
+        grad.addColorStop(1, '#2a3040');
+      } else if (isRain) {
+        grad.addColorStop(0, '#5a6470');
+        grad.addColorStop(1, '#3e444e');
+      } else {
+        grad.addColorStop(0, '#7a8898');
+        grad.addColorStop(1, '#5a6474');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(6, y, size - 12, h);
+
+      // 竖条窗框
+      ctx.fillStyle = baseCol;
+      for (let x = 6 + 22; x < size - 6; x += 24) {
+        ctx.fillRect(x, y, 2, h);
+      }
+
+      // 夜晚亮灯
+      if (isNight) {
+        for (let x = 8; x < size - 8; x += 24) {
+          if (Math.random() < 0.35) {
+            const r = 240 + Math.floor(Math.random() * 15);
+            const g = 190 + Math.floor(Math.random() * 40);
+            const b = 100 + Math.floor(Math.random() * 60);
+            ctx.fillStyle = `rgba(${r},${g},${b},0.85)`;
+            ctx.fillRect(x, y, 20, h);
+          }
+        }
+        // 每层水平分隔线
+        ctx.fillStyle = 'rgba(20,24,32,0.6)';
+        ctx.fillRect(0, y + h + 1, size, 2);
+      }
+    }
+  } else if (kind === 'residential') {
+    // 居民楼：小方格窗户
+    const floors = 10;
+    const cols = 6;
+    const fh = size / floors;
+    const cw = size / cols;
+    for (let j = 0; j < floors; j++) {
+      for (let i = 0; i < cols; i++) {
+        const x = i * cw + 4;
+        const y = j * fh + 4;
+        const w = cw - 8;
+        const h = fh - 8;
+
+        let lit = false;
+        if (isNight) lit = Math.random() < 0.45;
+        else if (isRain) lit = Math.random() < 0.08;
+        else lit = Math.random() < 0.12;
+
+        if (lit) {
+          const warm = isNight;
+          const r = warm ? 250 : 200;
+          const g = warm ? 200 + Math.floor(Math.random() * 40) : 210;
+          const b = warm ? 120 + Math.floor(Math.random() * 60) : 220;
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+        } else {
+          ctx.fillStyle = isNight ? 'rgba(20,25,35,0.92)' : 'rgba(55,60,70,0.7)';
+        }
+        ctx.fillRect(x, y, w, h);
+
+        // 阳台横条
+        if (Math.random() < 0.6) {
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.fillRect(x - 2, y + h - 3, w + 4, 3);
+        }
+      }
+    }
+  } else if (kind === 'mall') {
+    // 商场：大面积玻璃幕墙 + 招牌
+    const bandH = size * 0.55;
+    const y0 = size * 0.25;
+
+    // 玻璃幕墙
+    const grad = ctx.createLinearGradient(0, y0, 0, y0 + bandH);
+    if (isNight) {
+      grad.addColorStop(0, '#5a6478');
+      grad.addColorStop(1, '#3a4258');
+    } else if (isRain) {
+      grad.addColorStop(0, '#6a7280');
+      grad.addColorStop(1, '#4a5058');
+    } else {
+      grad.addColorStop(0, '#8a96a4');
+      grad.addColorStop(1, '#68727e');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(8, y0, size - 16, bandH);
+
+    // 玻璃竖框
+    ctx.fillStyle = baseCol;
+    for (let x = 8; x < size - 8; x += 32) {
+      ctx.fillRect(x, y0, 3, bandH);
+    }
+    // 玻璃横框
+    ctx.fillRect(8, y0 + bandH / 2 - 2, size - 16, 4);
+
+    // 夜晚内部暖光
+    if (isNight) {
+      for (let i = 0; i < 8; i++) {
+        const x = 12 + Math.random() * (size - 40);
+        const y = y0 + 8 + Math.random() * (bandH - 30);
+        ctx.fillStyle = `rgba(255, 210, 120, ${0.3 + Math.random() * 0.4})`;
+        ctx.fillRect(x, y, 16, 16);
+      }
+    }
+
+    // 顶部招牌
+    ctx.fillStyle = isNight ? '#1a1a22' : '#3a3a44';
+    ctx.fillRect(0, 0, size, y0);
+
+    // 招牌文字块（抽象色块）
+    const brandCols = ['#e85a4a', '#f0b840', '#4a90e2', '#50c878'];
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = brandCols[i];
+      ctx.globalAlpha = isNight ? 0.85 : 0.55;
+      ctx.fillRect(20 + i * 55, y0 * 0.35, 40, y0 * 0.35);
+    }
+    ctx.globalAlpha = 1;
+  } else {
+    // 通用：简单方窗
+    const floors = 8;
+    const cols = 5;
+    const fh = size / floors;
+    const cw = size / cols;
+    for (let j = 0; j < floors; j++) {
+      for (let i = 0; i < cols; i++) {
+        const x = i * cw + 6;
+        const y = j * fh + 6;
+        const w = cw - 12;
+        const h = fh - 12;
+        const lit = isNight && Math.random() < 0.4;
+        if (lit) {
+          ctx.fillStyle = 'rgba(250, 200, 130, 0.85)';
+        } else {
+          ctx.fillStyle = isNight ? 'rgba(20,25,35,0.9)' : 'rgba(50,55,65,0.65)';
+        }
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 2;
+  GameState.texCache[key] = tex;
+  return tex;
+}
+
+/* ==================== 9. 生成地图 ==================== */
 function generateMap() {
   if (!GameState.scene) return;
   clearScene();
@@ -382,19 +682,18 @@ function generateMap() {
   GameState.currentTheme = themes[Math.floor(Math.random() * themes.length)];
 
   // 地形振幅
-  GameState.terrainAmp = (GameState.currentMap === 'city' || GameState.currentMap === 'factory') ? 1.2 : 5.5;
+  GameState.terrainAmp = (GameState.currentMap === 'city' || GameState.currentMap === 'factory') ? 0.6 : 5.0;
 
   const mapNames = { forest: '森林', city: '城市', factory: '工厂', grassland: '草原' };
   const themeNames = { summer: '夏日', snow_night: '雪夜', rain: '阴雨' };
   const infoEl = document.getElementById('ftg-map-info');
   if (infoEl) infoEl.textContent = `${mapNames[GameState.currentMap]} · ${themeNames[GameState.currentTheme]}`;
 
-  // 天空 & 雾
   applySkyAndFog();
 
   // 地形
   const size = GameState.terrainSize;
-  const geo = new THREE.PlaneGeometry(size, size, 80, 80);
+  const geo = new THREE.PlaneGeometry(size, size, 60, 60);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
@@ -402,62 +701,36 @@ function generateMap() {
   }
   geo.computeVertexNormals();
 
-  let groundColor = 0x4a7a3a;
-  if (GameState.currentMap === 'city' || GameState.currentMap === 'factory') groundColor = 0x555658;
-  if (GameState.currentTheme === 'snow_night') groundColor = 0xe8eaf2;
-  else if (GameState.currentTheme === 'rain') groundColor = 0x2f3540;
+  let groundColor = 0x4a6a3a;
+  if (GameState.currentMap === 'city' || GameState.currentMap === 'factory') groundColor = 0x5a5c60;
+  if (GameState.currentTheme === 'snow_night') groundColor = 0xdfe4ee;
+  else if (GameState.currentTheme === 'rain') groundColor = 0x3a4048;
 
-  const groundMat = new THREE.MeshStandardMaterial({ color: groundColor, roughness: 1, metalness: 0 });
+  const groundTex = makeGroundTexture(GameState.currentMap, groundColor);
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: groundTex,
+    roughness: 0.98,
+    metalness: 0.02,
+  });
   const ground = new THREE.Mesh(geo, groundMat);
   ground.receiveShadow = true;
   GameState.scene.add(ground);
   GameState.objects.push(ground);
 
-  // 准备建筑纹理池
-  GameState.texPool = [];
-  const poolSize = 8;
-  for (let i = 0; i < poolSize; i++) {
-    GameState.texPool.push(makeBuildingTexture());
+  // 建筑 / 树木
+  if (GameState.currentMap === 'city') {
+    generateCityGrid();
+  } else if (GameState.currentMap === 'factory') {
+    generateFactoryGrid();
+  } else {
+    generateTrees();
   }
 
-  // 散布物体
-  const half = size / 2 - 10;
-  const count = GameState.currentMap === 'forest' ? 150
-              : GameState.currentMap === 'grassland' ? 90
-              : GameState.currentMap === 'city' ? 60
-              : 70;
-
-  for (let i = 0; i < count; i++) {
-    const x = (Math.random() - 0.5) * 2 * half;
-    const z = (Math.random() - 0.5) * 2 * half;
-    // 中心保底留空
-    if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
-
-    if (GameState.currentMap === 'forest' || GameState.currentMap === 'grassland') {
-      addTree(x, z);
-    } else if (GameState.currentMap === 'city') {
-      addCityBuilding(x, z);
-    } else {
-      addFactoryBuilding(x, z);
-    }
-  }
-
-  // 工厂额外烟囱 / 管道
-  if (GameState.currentMap === 'factory') {
-    for (let i = 0; i < 5; i++) {
-      const x = (Math.random() - 0.5) * 2 * half;
-      const z = (Math.random() - 0.5) * 2 * half;
-      if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
-      addChimney(x, z);
-    }
-  }
-
-  // 粒子
   setupParticles();
 
   // 相机复位
   if (GameState.camera) {
-    GameState.camera.position.set(0, 65, 85);
+    GameState.camera.position.set(0, 95, 130);
     if (GameState.controls) {
       GameState.controls.target.set(0, 0, 0);
       GameState.controls.update();
@@ -465,81 +738,53 @@ function generateMap() {
   }
 }
 
-/* ---------- 天空 & 雾 ---------- */
 function applySkyAndFog() {
   const s = GameState.scene;
   const theme = GameState.currentTheme;
   if (theme === 'summer') {
     s.background = new THREE.Color(0x8fc8f0);
-    s.fog = new THREE.Fog(0xb8d8ee, 140, 340);
+    s.fog = new THREE.Fog(0xb8d8ee, 220, 520);
     if (GameState.hemiLight) GameState.hemiLight.intensity = 0.7;
     if (GameState.ambientLight) GameState.ambientLight.intensity = 0.35;
     if (GameState.dirLight) {
       GameState.dirLight.intensity = 1.0;
       GameState.dirLight.color.setHex(0xfff3e0);
-      GameState.dirLight.position.set(60, 90, 40);
     }
   } else if (theme === 'snow_night') {
     s.background = new THREE.Color(0x0a0e1e);
-    s.fog = new THREE.Fog(0x0a0e1e, 80, 260);
+    s.fog = new THREE.Fog(0x0a0e1e, 120, 400);
     if (GameState.hemiLight) GameState.hemiLight.intensity = 0.28;
     if (GameState.ambientLight) GameState.ambientLight.intensity = 0.15;
     if (GameState.dirLight) {
       GameState.dirLight.intensity = 0.35;
       GameState.dirLight.color.setHex(0x8faadd);
-      GameState.dirLight.position.set(-50, 70, -40);
     }
   } else {
     s.background = new THREE.Color(0x39404d);
-    s.fog = new THREE.Fog(0x4a5260, 60, 220);
+    s.fog = new THREE.Fog(0x4a5260, 100, 350);
     if (GameState.hemiLight) GameState.hemiLight.intensity = 0.45;
     if (GameState.ambientLight) GameState.ambientLight.intensity = 0.32;
     if (GameState.dirLight) {
       GameState.dirLight.intensity = 0.42;
       GameState.dirLight.color.setHex(0xbcc6d4);
-      GameState.dirLight.position.set(30, 80, 20);
     }
   }
 }
 
-/* ==================== 8. 建筑纹理 ==================== */
-function makeBuildingTexture() {
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 128;
-  const ctx = c.getContext('2d');
+/* ==================== 10. 树木散布（森林 / 草原） ==================== */
+function generateTrees() {
+  const size = GameState.terrainSize;
+  const half = size / 2 - 15;
+  const count = GameState.currentMap === 'forest' ? 320 : 140;
 
-  const theme = GameState.currentTheme;
-  const isNight = theme === 'snow_night';
-  const baseCol = theme === 'rain' ? '#3a3f48' : isNight ? '#2c3242' : '#7a7d84';
-  ctx.fillStyle = baseCol;
-  ctx.fillRect(0, 0, 128, 128);
-
-  // 窗格 8 行 × 6 列
-  const rows = 8, cols = 6;
-  const cw = 128 / cols, ch = 128 / rows;
-  for (let i = 0; i < cols; i++) {
-    for (let j = 0; j < rows; j++) {
-      const lit = isNight ? Math.random() < 0.55 : Math.random() < 0.15;
-      if (lit) {
-        // 暖黄灯光
-        const r = 240 + Math.floor(Math.random() * 15);
-        const g = 190 + Math.floor(Math.random() * 40);
-        const b = 100 + Math.floor(Math.random() * 60);
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-      } else {
-        ctx.fillStyle = isNight ? 'rgba(15,20,35,0.9)' : 'rgba(40,45,55,0.75)';
-      }
-      ctx.fillRect(i * cw + 1, j * ch + 1, cw - 2, ch - 2);
-    }
+  for (let i = 0; i < count; i++) {
+    const x = rand(-half, half);
+    const z = rand(-half, half);
+    if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
+    addTree(x, z);
   }
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.LinearFilter;
-  return tex;
 }
 
-/* ==================== 9. 树木 ==================== */
 function addTree(x, z) {
   const g = new THREE.Group();
   const y = terrainHeight(x, z);
@@ -559,8 +804,6 @@ function addTree(x, z) {
   else if (theme === 'rain') leafColor = 0x1a3a1a;
 
   const leafMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.9 });
-
-  // 三层锥形，更自然
   const sizes = [
     { y: 3.2, r: 1.7, h: 2.4 },
     { y: 4.4, r: 1.35, h: 2.0 },
@@ -574,102 +817,216 @@ function addTree(x, z) {
   }
 
   g.position.set(x, y, z);
-  g.scale.setScalar(0.75 + Math.random() * 0.7);
+  g.scale.setScalar(rand(0.75, 1.45));
   g.rotation.y = Math.random() * Math.PI * 2;
 
   GameState.scene.add(g);
   GameState.objects.push(g);
 }
 
-/* ==================== 10. 城市建筑 ==================== */
-function addCityBuilding(x, z) {
+/* ==================== 11. 城市网格 ==================== */
+function generateCityGrid() {
+  const size = GameState.terrainSize;
+  const period = GameState.streetPeriod;
+  const half = size / 2;
+  const blockSize = period - GameState.streetWidth;
+
+  // 街区中心
+  for (let bx = -half + period; bx < half; bx += period) {
+    for (let bz = -half + period; bz < half; bz += period) {
+      const cx = bx + period / 2 - GameState.streetWidth / 2;
+      const cz = bz + period / 2 - GameState.streetWidth / 2;
+
+      // 中心留出空旷
+      if (Math.abs(cx) < 30 && Math.abs(cz) < 30) continue;
+
+      // 街区偶尔留空
+      if (Math.random() < 0.12) continue;
+
+      populateCityBlock(cx, cz, blockSize);
+    }
+  }
+}
+
+function populateCityBlock(cx, cz, blockSize) {
+  const padding = 3;
+  const avail = blockSize - padding * 2;
+
+  const layout = Math.random();
+  const rects = [];
+
+  if (layout < 0.22) {
+    // 单栋大楼
+    const w = avail * rand(0.7, 0.95);
+    const d = avail * rand(0.7, 0.95);
+    rects.push({ x: cx, z: cz, w, d });
+  } else if (layout < 0.55) {
+    // 两栋并排
+    const w = avail * 0.45;
+    const d = avail * rand(0.7, 0.95);
+    rects.push({ x: cx - avail * 0.25, z: cz, w, d });
+    rects.push({ x: cx + avail * 0.25, z: cz, w, d });
+  } else {
+    // 2x2 四栋
+    const cell = avail * 0.45;
+    const off = avail * 0.25;
+    rects.push({ x: cx - off, z: cz - off, w: cell, d: cell });
+    rects.push({ x: cx + off, z: cz - off, w: cell, d: cell });
+    rects.push({ x: cx - off, z: cz + off, w: cell, d: cell });
+    rects.push({ x: cx + off, z: cz + off, w: cell, d: cell });
+  }
+
+  // 每个街区随机风格
+  const styleRoll = Math.random();
+  let style;
+  if (styleRoll < 0.45) style = 'office';
+  else if (styleRoll < 0.8) style = 'residential';
+  else style = 'mall';
+
+  for (const r of rects) {
+    addCityBuilding(r.x, r.z, r.w, r.d, style);
+  }
+}
+
+function addCityBuilding(x, z, w, d, style) {
   const y = terrainHeight(x, z);
-  const shapeType = Math.random();
+  const isNight = GameState.currentTheme === 'snow_night';
 
-  const w = 3 + Math.random() * 5;
-  const d = 3 + Math.random() * 5;
-  const h = 6 + Math.random() * 20;
+  let h;
+  if (style === 'office') h = rand(18, 55);
+  else if (style === 'residential') h = rand(8, 20);
+  else h = rand(6, 12);   // mall
 
-  const tex = GameState.texPool[Math.floor(Math.random() * GameState.texPool.length)];
+  // 商圈内的商场更矮但更宽
+  if (style === 'mall' && Math.random() < 0.3) {
+    h = rand(8, 14);
+  }
+
+  const tex = makeBuildingTexture(style);
+  // 根据尺寸调整 UV 重复（避免拉伸）
+  const texW = tex.clone();
+  texW.needsUpdate = true;
+  const rH = Math.max(1, Math.round(h / 6));
+  const rW = Math.max(1, Math.round(Math.max(w, d) / 6));
+  texW.repeat.set(rW, rH);
+
   const mat = new THREE.MeshStandardMaterial({
-    map: tex,
-    emissiveMap: tex,
-    emissive: GameState.currentTheme === 'snow_night' ? 0xffffff : 0x000000,
-    emissiveIntensity: GameState.currentTheme === 'snow_night' ? 0.9 : 0,
-    roughness: 0.85,
-    metalness: 0.05,
+    map: texW,
+    emissiveMap: isNight ? texW : null,
+    emissive: isNight ? 0xffffff : 0x000000,
+    emissiveIntensity: isNight ? 0.55 : 0,
+    roughness: 0.82,
+    metalness: 0.08,
   });
 
   const group = new THREE.Group();
 
-  if (shapeType < 0.55) {
-    // 普通长方体
+  // 形状变化
+  const shapeRoll = Math.random();
+  if (shapeRoll < 0.6) {
+    // 简单长方体
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     b.position.y = h / 2;
-    b.castShadow = true;
-    b.receiveShadow = true;
+    b.castShadow = true; b.receiveShadow = true;
     group.add(b);
-  } else if (shapeType < 0.78) {
-    // L 形（两个盒子组合）
-    const w1 = w, d1 = d * 0.5;
+
+    // 屋顶小箱
+    if (Math.random() < 0.5) {
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 1.5, d * 0.3), mat);
+      cap.position.y = h + 0.75;
+      cap.castShadow = true;
+      group.add(cap);
+    }
+  } else if (shapeRoll < 0.82) {
+    // 阶梯状
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.7, d), mat);
+    b1.position.y = h * 0.35;
+    b1.castShadow = true; b1.receiveShadow = true;
+    group.add(b1);
+
+    const w2 = w * 0.7, d2 = d * 0.7;
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(w2, h * 0.3, d2), mat);
+    b2.position.y = h * 0.85;
+    b2.castShadow = true; b2.receiveShadow = true;
+    group.add(b2);
+  } else {
+    // L 形
+    const w1 = w, d1 = d * 0.55;
     const b1 = new THREE.Mesh(new THREE.BoxGeometry(w1, h, d1), mat);
     b1.position.set(0, h / 2, -d / 2 + d1 / 2);
     b1.castShadow = true; b1.receiveShadow = true;
     group.add(b1);
 
-    const w2 = w * 0.5, d2 = d * 0.5;
-    const b2 = new THREE.Mesh(new THREE.BoxGeometry(w2, h * 0.85, d2), mat);
-    b2.position.set(w / 2 - w2 / 2, h * 0.425, d / 2 - d2 / 2);
+    const w2 = w * 0.55, d2 = d * 0.45;
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(w2, h * 0.8, d2), mat);
+    b2.position.set(-w / 2 + w2 / 2, h * 0.4, d / 2 - d2 / 2);
     b2.castShadow = true; b2.receiveShadow = true;
     group.add(b2);
-  } else {
-    // 阶梯状（上小下大）
-    const b1 = new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.6, d), mat);
-    b1.position.y = h * 0.3;
-    b1.castShadow = true; b1.receiveShadow = true;
-    group.add(b1);
-
-    const w2 = w * 0.7, d2 = d * 0.7;
-    const b2 = new THREE.Mesh(new THREE.BoxGeometry(w2, h * 0.4, d2), mat);
-    b2.position.y = h * 0.8;
-    b2.castShadow = true; b2.receiveShadow = true;
-    group.add(b2);
-
-    // 屋顶小盒子
-    const b3 = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 1.2, d * 0.3), mat);
-    b3.position.y = h + 0.6;
-    b3.castShadow = true;
-    group.add(b3);
   }
 
-  // 夜景屋顶灯光（红点）
-  if (GameState.currentTheme === 'snow_night' && Math.random() < 0.4) {
-    const lightMat = new THREE.MeshBasicMaterial({ color: 0xff3344 });
-    const lightMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), lightMat);
-    lightMesh.position.set(0, h + 1.5, 0);
-    group.add(lightMesh);
+  // 夜晚屋顶警示灯
+  if (isNight && h > 20 && Math.random() < 0.5) {
+    const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff3344 });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 6), beaconMat);
+    beacon.position.y = h + 1.2;
+    group.add(beacon);
   }
 
   group.position.set(x, y, z);
-  group.rotation.y = Math.random() * Math.PI * 2;
+  group.rotation.y = Math.random() < 0.15 ? Math.PI / 2 : 0;
+
   GameState.scene.add(group);
   GameState.objects.push(group);
+
+  // 记录占位 AABB（用于坦克生成排除）
+  const halfW = Math.max(w, d) / 2 + 3;
+  GameState.occupiedBoxes.push({
+    minX: x - halfW, maxX: x + halfW,
+    minZ: z - halfW, maxZ: z + halfW,
+  });
 }
 
-/* ==================== 11. 工厂建筑 ==================== */
-function addFactoryBuilding(x, z) {
-  const y = terrainHeight(x, z);
-  const w = 8 + Math.random() * 8;
-  const d = 8 + Math.random() * 10;
-  const h = 4 + Math.random() * 5;
+/* ==================== 12. 工厂网格 ==================== */
+function generateFactoryGrid() {
+  const size = GameState.terrainSize;
+  const period = GameState.streetPeriod;
+  const half = size / 2;
+  const blockSize = period - GameState.streetWidth;
 
-  // 工厂外壳材质
-  const color = GameState.currentTheme === 'snow_night' ? 0x3a4050
-              : GameState.currentTheme === 'rain' ? 0x35404a
-              : 0x6d737a;
-  const mat = new THREE.MeshStandardMaterial({
-    color, roughness: 0.85, metalness: 0.15
-  });
+  for (let bx = -half + period; bx < half; bx += period) {
+    for (let bz = -half + period; bz < half; bz += period) {
+      const cx = bx + period / 2 - GameState.streetWidth / 2;
+      const cz = bz + period / 2 - GameState.streetWidth / 2;
+
+      if (Math.abs(cx) < 30 && Math.abs(cz) < 30) continue;
+      if (Math.random() < 0.18) continue;
+
+      // 一半概率工厂主体，一半烟囱
+      if (Math.random() < 0.65) {
+        const w = blockSize * rand(0.6, 0.95);
+        const d = blockSize * rand(0.6, 0.95);
+        addFactoryBuilding(cx, cz, w, d);
+      } else {
+        addChimney(cx, cz);
+      }
+    }
+  }
+
+  // 额外散布一些小烟囱
+  for (let i = 0; i < 8; i++) {
+    const x = rand(-half + 20, half - 20);
+    const z = rand(-half + 20, half - 20);
+    if (isPositionFree(x, z, 10)) addChimney(x, z);
+  }
+}
+
+function addFactoryBuilding(x, z, w, d) {
+  const y = terrainHeight(x, z);
+  const h = rand(6, 12);
+
+  const theme = GameState.currentTheme;
+  let baseCol = theme === 'snow_night' ? 0x3a4050 : theme === 'rain' ? 0x35404a : 0x6d737a;
+  const mat = new THREE.MeshStandardMaterial({ color: baseCol, roughness: 0.82, metalness: 0.18 });
 
   const group = new THREE.Group();
 
@@ -679,45 +1036,52 @@ function addFactoryBuilding(x, z) {
   main.castShadow = true; main.receiveShadow = true;
   group.add(main);
 
-  // 锯齿形屋顶
-  const toothMat = new THREE.MeshStandardMaterial({
-    color: 0x8a8e94, roughness: 0.7, metalness: 0.25
-  });
-  const teethCount = Math.floor(w / 2.5);
+  // 锯齿屋顶
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.72, metalness: 0.28 });
+  const toothW = 2.0;
+  const teethCount = Math.max(2, Math.floor(w / 3));
+  const actualToothW = w / teethCount;
   for (let i = 0; i < teethCount; i++) {
     const tooth = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 1.4, d * 0.95),
-      toothMat
+      new THREE.BoxGeometry(actualToothW * 0.9, 1.6, d * 0.92),
+      roofMat
     );
-    tooth.position.set(-w / 2 + 1.25 + i * 2.5, h + 0.7, 0);
+    tooth.position.set(-w / 2 + actualToothW / 2 + i * actualToothW, h + 0.8, 0);
     tooth.castShadow = true;
     group.add(tooth);
   }
 
-  // 立面窗户条
-  if (GameState.currentTheme === 'snow_night') {
+  // 立面窗户
+  if (theme === 'snow_night') {
     const winMat = new THREE.MeshBasicMaterial({ color: 0xffcc66 });
-    for (let i = 0; i < 4; i++) {
-      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), winMat);
-      win.position.set(-w / 2 + 1 + i * 2, h * 0.5, d / 2 + 0.01);
+    const cols = Math.max(2, Math.floor(w / 3));
+    for (let i = 0; i < cols; i++) {
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), winMat);
+      win.position.set(-w / 2 + 1.5 + i * (w / cols), h * 0.5, d / 2 + 0.02);
       group.add(win);
     }
   }
 
   group.position.set(x, y, z);
-  group.rotation.y = Math.random() < 0.5 ? 0 : Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+  group.rotation.y = Math.random() < 0.5 ? 0 : Math.PI / 2;
   GameState.scene.add(group);
   GameState.objects.push(group);
+
+  const halfW = Math.max(w, d) / 2 + 3;
+  GameState.occupiedBoxes.push({
+    minX: x - halfW, maxX: x + halfW,
+    minZ: z - halfW, maxZ: z + halfW,
+  });
 }
 
-/* ==================== 12. 工厂烟囱 ==================== */
 function addChimney(x, z) {
   const y = terrainHeight(x, z);
-  const h = 12 + Math.random() * 14;
-  const r = 0.7 + Math.random() * 0.5;
+  const h = rand(14, 30);
+  const r = rand(0.7, 1.2);
 
+  const theme = GameState.currentTheme;
   const mat = new THREE.MeshStandardMaterial({
-    color: GameState.currentTheme === 'rain' ? 0x4a4a52 : 0x8a8a90,
+    color: theme === 'rain' ? 0x4a4a52 : 0x8a8a90,
     roughness: 0.85, metalness: 0.2
   });
 
@@ -728,28 +1092,42 @@ function addChimney(x, z) {
   chimney.castShadow = true;
   group.add(chimney);
 
-  // 顶部红白条
   const band = new THREE.Mesh(
-    new THREE.CylinderGeometry(r * 1.05, r * 1.05, 0.6, 12),
+    new THREE.CylinderGeometry(r * 1.05, r * 1.05, 0.7, 12),
     new THREE.MeshStandardMaterial({ color: 0xc04040, roughness: 0.7 })
   );
   band.position.y = h - 1.5;
   group.add(band);
 
-  // 红色警示灯
   const beacon = new THREE.Mesh(
-    new THREE.SphereGeometry(0.25, 8, 8),
+    new THREE.SphereGeometry(0.28, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xff2222 })
   );
-  beacon.position.y = h + 0.4;
+  beacon.position.y = h + 0.5;
   group.add(beacon);
 
   group.position.set(x, y, z);
   GameState.scene.add(group);
   GameState.objects.push(group);
+
+  GameState.occupiedBoxes.push({
+    minX: x - r * 2, maxX: x + r * 2,
+    minZ: z - r * 2, maxZ: z + r * 2,
+  });
 }
 
-/* ==================== 13. 前置炮塔精细坦克模型 ==================== */
+/* ==================== 13. 位置空闲检测 ==================== */
+function isPositionFree(x, z, radius) {
+  for (const b of GameState.occupiedBoxes) {
+    if (x + radius > b.minX && x - radius < b.maxX &&
+        z + radius > b.minZ && z - radius < b.maxZ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* ==================== 14. 精细坦克模型 ==================== */
 function createTankModel(type) {
   const group = new THREE.Group();
 
@@ -764,28 +1142,22 @@ function createTankModel(type) {
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.85, metalness: 0.3 });
   const metalMat = new THREE.MeshStandardMaterial({ color: 0x2f3338, roughness: 0.55, metalness: 0.7 });
 
-  // === 履带总成（两侧） ===
   function makeTrackAssembly() {
     const t = new THREE.Group();
 
-    // 履带外壳（4 段）
     const beltBottom = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 0.42), trackMat);
     beltBottom.position.y = -0.28;
     t.add(beltBottom);
-
     const beltTop = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 0.42), trackMat);
     beltTop.position.y = 0.32;
     t.add(beltTop);
-
     const beltFront = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.42), trackMat);
     beltFront.position.set(1.72, 0.02, 0);
     t.add(beltFront);
-
     const beltBack = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.42), trackMat);
     beltBack.position.set(-1.72, 0.02, 0);
     t.add(beltBack);
 
-    // 负重轮 × 6
     const wheelGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.34, 12);
     for (let i = 0; i < 6; i++) {
       const w = new THREE.Mesh(wheelGeo, wheelMat);
@@ -794,114 +1166,92 @@ function createTankModel(type) {
       t.add(w);
     }
 
-    // 主动轮（后） / 诱导轮（前）
     const driveGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.36, 10);
     const drive = new THREE.Mesh(driveGeo, wheelMat);
     drive.rotation.x = Math.PI / 2;
     drive.position.set(-1.55, 0.05, 0);
     t.add(drive);
-
     const idler = new THREE.Mesh(driveGeo, wheelMat);
     idler.rotation.x = Math.PI / 2;
     idler.position.set(1.55, 0.05, 0);
     t.add(idler);
 
-    // 履带齿（顶部小块）
     for (let i = 0; i < 10; i++) {
       const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.44), trackMat);
       tooth.position.set(-1.6 + i * 0.36, 0.4, 0);
       t.add(tooth);
     }
-
     return t;
   }
 
   const trackL = makeTrackAssembly();
   trackL.position.set(0, 0.35, 0.82);
   group.add(trackL);
-
   const trackR = makeTrackAssembly();
   trackR.position.set(0, 0.35, -0.82);
   group.add(trackR);
 
-  // === 车体下部 ===
   const hullLower = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.5, 1.55), hullMat);
   hullLower.position.set(0, 0.6, 0);
-  hullLower.castShadow = true;
-  hullLower.receiveShadow = true;
+  hullLower.castShadow = true; hullLower.receiveShadow = true;
   group.add(hullLower);
 
-  // === 车体上部（略窄，形成斜面感） ===
   const hullUpper = new THREE.Mesh(new THREE.BoxGeometry(2.95, 0.45, 1.35), hullMat);
   hullUpper.position.set(0, 1.05, 0);
   hullUpper.castShadow = true;
   group.add(hullUpper);
 
-  // 前部倾斜装甲（用一个旋转的盒子近似）
   const glacis = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 1.35), hullMatDark);
   glacis.rotation.z = -Math.PI / 4.5;
   glacis.position.set(1.35, 0.85, 0);
   glacis.castShadow = true;
   group.add(glacis);
 
-  // === 前挡泥板 ===
   const fender = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 1.7), hullMatDark);
   fender.position.set(1.85, 1.28, 0);
   group.add(fender);
 
-  // === 工具箱 / 储物箱 ===
   const box = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.28, 0.35), hullMatDark);
   box.position.set(-1.0, 1.4, 0.45);
   box.castShadow = true;
   group.add(box);
-
   const box2 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.4), hullMatDark);
   box2.position.set(-1.0, 1.36, -0.45);
   box2.castShadow = true;
   group.add(box2);
 
-  // === 尾部排气管 ===
   const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 8), metalMat);
   exhaust.rotation.z = Math.PI / 2;
   exhaust.position.set(-1.75, 1.15, 0.35);
   group.add(exhaust);
-
   const exhaust2 = exhaust.clone();
   exhaust2.position.z = -0.35;
   group.add(exhaust2);
 
   if (type === 'MBT') {
-    // ================ 主战坦克：前置炮塔 ================
-    // 炮塔座圈（小圆台）
-    const ringGeo = new THREE.CylinderGeometry(0.72, 0.78, 0.12, 16);
-    const ring = new THREE.Mesh(ringGeo, hullMatDark);
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.78, 0.12, 16), hullMatDark);
     ring.position.set(0.35, 1.34, 0);
     group.add(ring);
 
-    // 炮塔主体（偏前）
     const turret = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.55, 1.3), hullMat);
     turret.position.set(0.35, 1.65, 0);
     turret.castShadow = true;
     group.add(turret);
 
-    // 炮塔前部倾斜面
     const turretFront = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.15), hullMat);
     turretFront.position.set(1.1, 1.68, 0);
     turretFront.castShadow = true;
     group.add(turretFront);
 
-    // 炮塔顶部
     const turretTop = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.14, 1.15), hullMat);
     turretTop.position.set(0.35, 1.99, 0);
     turretTop.castShadow = true;
     group.add(turretTop);
 
-    // 炮盾
     const mantlet = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.52, 0.85), hullMatDark);
     mantlet.position.set(1.38, 1.7, 0);
     group.add(mantlet);
 
-    // 主炮管（分段：基部粗 + 主体 + 炮口）
     const barrelBase = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.5, 12), metalMat);
     barrelBase.rotation.z = -Math.PI / 2;
     barrelBase.position.set(1.7, 1.7, 0);
@@ -913,13 +1263,11 @@ function createTankModel(type) {
     barrel.castShadow = true;
     group.add(barrel);
 
-    // 炮口制退器
     const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.32, 12), metalMat);
     muzzle.rotation.z = -Math.PI / 2;
     muzzle.position.set(4.35, 1.7, 0);
     group.add(muzzle);
 
-    // 制退器开槽（两个薄环）
     const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.025, 6, 14), metalMat);
     ringA.rotation.y = Math.PI / 2;
     ringA.position.set(4.42, 1.7, 0);
@@ -928,18 +1276,15 @@ function createTankModel(type) {
     ringB.position.x = 4.28;
     group.add(ringB);
 
-    // 车长塔
     const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.24, 12), hullMat);
     cupola.position.set(-0.25, 2.1, 0.38);
     cupola.castShadow = true;
     group.add(cupola);
 
-    // 车长塔舱盖
     const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 12), hullMatDark);
     hatch.position.set(-0.25, 2.24, 0.38);
     group.add(hatch);
 
-    // 高射机枪
     const mgBase = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.08, 0.15), metalMat);
     mgBase.position.set(-0.25, 2.28, 0.38);
     group.add(mgBase);
@@ -948,7 +1293,6 @@ function createTankModel(type) {
     mgBarrel.position.set(0.1, 2.35, 0.38);
     group.add(mgBarrel);
 
-    // 侧面装甲块
     const side1 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.08), hullMatDark);
     side1.position.set(0.3, 1.65, 0.68);
     group.add(side1);
@@ -956,67 +1300,54 @@ function createTankModel(type) {
     side2.position.z = -0.68;
     group.add(side2);
 
-    // 天线
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.4, 4), metalMat);
     antenna.position.set(-0.65, 2.7, -0.4);
     group.add(antenna);
 
-    // 炮塔尾部储物篮
     const basket = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.3, 1.05), hullMatDark);
     basket.position.set(-0.55, 1.55, 0);
     basket.castShadow = true;
     group.add(basket);
-
   } else {
-    // ================ 无炮塔坦克歼击车 ================
-    // 战斗室（前部斜甲）
     const casemate = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.62, 1.3), hullMat);
     casemate.position.set(-0.1, 1.6, 0);
     casemate.castShadow = true;
     group.add(casemate);
 
-    // 战斗室前斜装甲
     const casemateFront = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.65, 1.2), hullMatDark);
     casemateFront.rotation.z = -Math.PI / 5;
     casemateFront.position.set(0.85, 1.55, 0);
     casemateFront.castShadow = true;
     group.add(casemateFront);
 
-    // 战斗室顶部
     const casemateTop = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 1.2), hullMat);
     casemateTop.position.set(-0.1, 1.94, 0);
     group.add(casemateTop);
 
-    // 炮盾（球型）
     const mantlet = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), hullMatDark);
     mantlet.position.set(1.15, 1.68, 0);
     mantlet.scale.set(0.7, 1, 1.05);
     group.add(mantlet);
 
-    // 长身管主炮
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 3.0, 12), metalMat);
     barrel.rotation.z = -Math.PI / 2;
     barrel.position.set(2.75, 1.68, 0);
     barrel.castShadow = true;
     group.add(barrel);
 
-    // 炮口制退器
     const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.3, 12), metalMat);
     muzzle.rotation.z = -Math.PI / 2;
     muzzle.position.set(4.35, 1.68, 0);
     group.add(muzzle);
 
-    // 舱盖
     const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 12), hullMatDark);
     hatch.position.set(-0.55, 2.02, 0.35);
     group.add(hatch);
 
-    // 潜望镜
     const peri = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.16), metalMat);
     peri.position.set(0.4, 2.02, 0.42);
     group.add(peri);
 
-    // 天线
     const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.3, 4), metalMat);
     antenna.position.set(-0.9, 2.6, -0.45);
     group.add(antenna);
@@ -1025,24 +1356,37 @@ function createTankModel(type) {
   return group;
 }
 
-/* ==================== 14. 藏匿坦克 ==================== */
+/* ==================== 15. 藏匿坦克（避让建筑） ==================== */
 function spawnTank() {
   if (!GameState.scene) return;
 
   const types = ['MBT', 'TD'];
-  const type = types[Math.floor(Math.random() * types.length)];
-  const tank = createTankModel(type);
+  GameState.targetType = pick(types);
+  const tank = createTankModel(GameState.targetType);
 
-  // 藏在距中心较远的位置
-  const half = GameState.terrainSize / 2 - 20;
-  let x, z, tries = 0;
-  do {
+  const half = GameState.terrainSize / 2 - 25;
+  const TANK_RADIUS = 6;   // 坦克周围需要多大的空闲半径
+
+  let x = 0, z = 0;
+  let ok = false;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    // 距中心较远
     const angle = Math.random() * Math.PI * 2;
-    const dist = 35 + Math.random() * (half - 35);
+    const dist = rand(40, half);
     x = Math.cos(angle) * dist;
     z = Math.sin(angle) * dist;
-    tries++;
-  } while (Math.abs(x) < 15 && Math.abs(z) < 15 && tries < 20);
+
+    if (Math.abs(x) > half || Math.abs(z) > half) continue;
+    if (isPositionFree(x, z, TANK_RADIUS)) {
+      ok = true;
+      break;
+    }
+  }
+
+  // 兜底：如果全部失败，就扔到（0,0）附近
+  if (!ok) {
+    x = 0; z = 0;
+  }
 
   const y = terrainHeight(x, z);
   tank.position.set(x, y, z);
@@ -1052,28 +1396,23 @@ function spawnTank() {
   GameState.objects.push(tank);
   GameState.targetTank = tank;
 
-  // 雪夜车灯
   if (GameState.currentTheme === 'snow_night') {
-    // 主探照灯
-    const spot = new THREE.SpotLight(0xfff0c0, 4, 45, Math.PI / 7, 0.55, 1.2);
+    const spot = new THREE.SpotLight(0xfff0c0, 4, 60, Math.PI / 7, 0.55, 1.2);
     spot.position.set(1.4, 1.4, 0.35);
-
     const target = new THREE.Object3D();
-    target.position.set(30, 0, 2);
+    target.position.set(40, 0, 2);
     tank.add(target);
     spot.target = target;
     tank.add(spot);
 
-    // 副灯（右侧）
-    const spot2 = new THREE.SpotLight(0xfff0c0, 2.5, 40, Math.PI / 7, 0.55, 1.2);
+    const spot2 = new THREE.SpotLight(0xfff0c0, 2.5, 50, Math.PI / 7, 0.55, 1.2);
     spot2.position.set(1.4, 1.4, -0.35);
     const target2 = new THREE.Object3D();
-    target2.position.set(30, 0, -2);
+    target2.position.set(40, 0, -2);
     tank.add(target2);
     spot2.target = target2;
     tank.add(spot2);
 
-    // 发光的灯罩小球
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
     const lamp1 = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), lampMat);
     lamp1.position.set(1.55, 1.35, 0.35);
@@ -1084,7 +1423,7 @@ function spawnTank() {
   }
 }
 
-/* ==================== 15. 雨雪粒子 ==================== */
+/* ==================== 16. 粒子 ==================== */
 function makeSnowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
@@ -1115,9 +1454,9 @@ function setupParticles() {
   if (theme === 'summer') return;
 
   const isRain = theme === 'rain';
-  const count = isRain ? 6000 : 3000;
-  const areaSize = GameState.terrainSize * 0.9;
-  const topY = 90;
+  const count = isRain ? 8000 : 4000;
+  const areaSize = GameState.terrainSize * 0.8;
+  const topY = 120;
 
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -1130,17 +1469,16 @@ function setupParticles() {
 
   const tex = isRain ? makeRainTexture() : makeSnowTexture();
   const mat = new THREE.PointsMaterial({
-    size: isRain ? 1.0 : 1.1,
+    size: isRain ? 1.2 : 1.4,
     map: tex,
     transparent: true,
     opacity: isRain ? 0.55 : 0.95,
     depthWrite: false,
     sizeAttenuation: true,
-    blending: isRain ? THREE.NormalBlending : THREE.NormalBlending,
   });
 
   const pts = new THREE.Points(geo, mat);
-  pts.raycast = () => {};   // 不参与点击
+  pts.raycast = () => {};
   GameState.scene.add(pts);
   GameState.particleObj = pts;
   GameState.particleType = theme;
@@ -1153,9 +1491,9 @@ function updateParticles(dt) {
   const count = arr.length / 3;
   const isRain = GameState.particleType === 'rain';
 
-  const fallSpeed = isRain ? 55 : 5.5;
-  const drift = isRain ? 2 : 1.2;
-  const topY = 90;
+  const fallSpeed = isRain ? 70 : 6;
+  const drift = isRain ? 2.5 : 1.2;
+  const topY = 120;
 
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
@@ -1164,14 +1502,14 @@ function updateParticles(dt) {
 
     if (arr[i3 + 1] < 0) {
       arr[i3 + 1] = topY;
-      arr[i3] = (Math.random() - 0.5) * GameState.terrainSize * 0.9;
-      arr[i3 + 2] = (Math.random() - 0.5) * GameState.terrainSize * 0.9;
+      arr[i3] = (Math.random() - 0.5) * GameState.terrainSize * 0.8;
+      arr[i3 + 2] = (Math.random() - 0.5) * GameState.terrainSize * 0.8;
     }
   }
   pts.geometry.attributes.position.needsUpdate = true;
 }
 
-/* ==================== 16. 点击 → 遮挡判定 ==================== */
+/* ==================== 17. 点击 → 遮挡判定 ==================== */
 function handleCanvasClick(clientX, clientY) {
   if (GameState.phase !== 'playing' || GameState.locked) return;
   if (!GameState.targetTank) return;
@@ -1183,23 +1521,17 @@ function handleCanvasClick(clientX, clientY) {
   GameState.pointer.set(x, y);
   GameState.raycaster.setFromCamera(GameState.pointer, GameState.camera);
 
-  // 收集坦克所有网格
   const tankMeshes = [];
   GameState.targetTank.traverse(o => { if (o.isMesh) tankMeshes.push(o); });
 
-  // 先测试是否点在坦克上
   const tankHits = GameState.raycaster.intersectObjects(tankMeshes, false);
   if (tankHits.length === 0) return;
 
-  // 检测遮挡：对全场做射线，看第一个命中的是否为坦克
   const allHits = GameState.raycaster.intersectObjects(GameState.scene.children, true);
   for (const hit of allHits) {
     const obj = hit.object;
-    // 跳过无实体意义的辅助对象
     if (obj.isPoints || obj.isSprite) continue;
-    if (obj.type === 'SpotLight' || obj.type === 'PointLight' || obj.type === 'DirectionalLight') continue;
 
-    // 判断是否是坦克的子物体
     let n = obj;
     let isTank = false;
     while (n) {
@@ -1207,15 +1539,12 @@ function handleCanvasClick(clientX, clientY) {
       n = n.parent;
     }
 
-    if (isTank) {
-      triggerWin();
-    }
-    // 无论第一个命中的是什么，都结束判定
+    if (isTank) triggerWin();
     return;
   }
 }
 
-/* ==================== 17. 胜利 ==================== */
+/* ==================== 18. 胜利 + 导弹 ==================== */
 function triggerWin() {
   if (GameState.locked) return;
   GameState.locked = true;
@@ -1226,10 +1555,10 @@ function triggerWin() {
 
   if (typeof playSound === 'function') playSound('fav');
 
-  // 1. "!" 漂浮标记
+  // 1. "!" 精灵
   const sprite = makeExclamationSprite();
   const tankPos = GameState.targetTank.position.clone();
-  sprite.position.set(tankPos.x, tankPos.y + 6, tankPos.z);
+  sprite.position.set(tankPos.x, tankPos.y + 7, tankPos.z);
   GameState.scene.add(sprite);
   GameState.winSprite = sprite;
 
@@ -1250,11 +1579,17 @@ function triggerWin() {
   else dirZ = -1;
 
   GameState.winState = {
+    phase: 'alert',       // alert → missile → escape
+    t: 0,
+    escapeT: 0,
     sprite,
     tank: GameState.targetTank,
     dir: new THREE.Vector3(dirX, 0, dirZ).normalize(),
-    t: 0,
     baseY: tankPos.y,
+    missile: null,
+    missileVel: null,
+    missileTarget: new THREE.Vector3(),
+    missileActive: false,
   };
 }
 
@@ -1284,77 +1619,362 @@ function makeExclamationSprite() {
   return sprite;
 }
 
+/* ---------- 导弹 ---------- */
+function createMissileModel() {
+  const g = new THREE.Group();
+
+  // 弹体（细长圆柱）
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a8a92, roughness: 0.5, metalness: 0.6 })
+  );
+  body.rotation.z = -Math.PI / 2;   // 朝向 +X
+  g.add(body);
+
+  // 鼻锥
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.7, 10),
+    new THREE.MeshStandardMaterial({ color: 0xcc4444, roughness: 0.4, metalness: 0.5 })
+  );
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.x = 1.65;
+  g.add(nose);
+
+  // 尾翼（3 片）
+  const finMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.6, metalness: 0.4 });
+  for (let i = 0; i < 3; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.06), finMat);
+    fin.position.x = -1.1;
+    fin.rotation.x = (i / 3) * Math.PI * 2;
+    // 需要绕 X 轴偏移，让翼片贴在弹体周围
+    const r = 0.22;
+    fin.position.y = Math.cos((i / 3) * Math.PI * 2) * r;
+    fin.position.z = Math.sin((i / 3) * Math.PI * 2) * r;
+    // 让翼片长边朝外
+    fin.rotation.z = 0;
+    fin.rotation.x = 0;
+    fin.rotation.y = (i / 3) * Math.PI * 2;
+    g.add(fin);
+  }
+
+  // 尾焰发光（球体 + 加色混合）
+  const flame = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffaa33,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  flame.position.x = -1.55;
+  flame.name = 'flame';
+  g.add(flame);
+
+  // 内焰（亮黄）
+  const flameInner = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffcc,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  flameInner.position.x = -1.5;
+  flameInner.name = 'flameInner';
+  g.add(flameInner);
+
+  return g;
+}
+
+function spawnMissile() {
+  const w = GameState.winState;
+  if (!w) return;
+
+  const tankPos = w.tank.position.clone();
+  const camPos = GameState.camera.position.clone();
+
+  // 从相机后方较远处生成
+  const awayDir = camPos.clone().sub(tankPos).normalize();
+  const spawnPos = camPos.clone().add(awayDir.multiplyScalar(150));
+  spawnPos.y += 45;
+  // 横向偏移，制造更有戏剧性的入场
+  spawnPos.x += (Math.random() - 0.5) * 60;
+  spawnPos.z += (Math.random() - 0.5) * 60;
+
+  const missile = createMissileModel();
+  missile.position.copy(spawnPos);
+
+  // 初始朝向坦克
+  const toTank = tankPos.clone().sub(spawnPos).normalize();
+  missile.rotation.y = Math.atan2(-toTank.z, toTank.x);
+  missile.rotation.z = 0;
+
+  GameState.scene.add(missile);
+
+  // 速度
+  const SPEED = 70;
+  const vel = toTank.multiplyScalar(SPEED);
+
+  w.missile = missile;
+  w.missileVel = vel;
+  w.missileActive = true;
+
+  // 创建尾迹
+  setupMissileTrail();
+
+  if (typeof playSound === 'function') playSound('open');
+}
+
+/* ---------- 尾迹 ---------- */
+const MISSILE_TRAIL_MAX = 90;
+
+function setupMissileTrail() {
+  if (GameState.missileTrail) {
+    GameState.scene.remove(GameState.missileTrail);
+    GameState.missileTrail.geometry.dispose();
+    GameState.missileTrail.material.dispose();
+  }
+
+  const positions = new Float32Array(MISSILE_TRAIL_MAX * 3);
+  // 全部放在地下，避免初始可见
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) {
+    positions[i * 3 + 1] = -9999;
+  }
+
+  const colors = new Float32Array(MISSILE_TRAIL_MAX * 3);
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) {
+    const t = i / MISSILE_TRAIL_MAX;
+    // 最新 → 亮黄，最旧 → 暗红
+    const r = 1.0 - t * 0.6;
+    const gg = 0.85 - t * 0.75;
+    const b = 0.35 - t * 0.3;
+    colors[i * 3] = Math.max(0, r);
+    colors[i * 3 + 1] = Math.max(0, gg);
+    colors[i * 3 + 2] = Math.max(0, b);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 2.2,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const pts = new THREE.Points(geo, mat);
+  pts.raycast = () => {};
+  pts.frustumCulled = false;
+  GameState.scene.add(pts);
+  GameState.missileTrail = pts;
+  GameState.missileTrailHistory = [];
+}
+
+function updateMissileTrail() {
+  const trail = GameState.missileTrail;
+  const w = GameState.winState;
+  if (!trail || !w || !w.missile) return;
+
+  const hist = GameState.missileTrailHistory;
+  // 头插法：最新位置在最前
+  hist.unshift(w.missile.position.clone());
+  if (hist.length > MISSILE_TRAIL_MAX) hist.length = MISSILE_TRAIL_MAX;
+
+  const posArr = trail.geometry.attributes.position.array;
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) {
+    if (i < hist.length) {
+      const p = hist[i];
+      posArr[i * 3] = p.x;
+      posArr[i * 3 + 1] = p.y;
+      posArr[i * 3 + 2] = p.z;
+    } else {
+      posArr[i * 3 + 1] = -9999;
+    }
+  }
+  trail.geometry.attributes.position.needsUpdate = true;
+}
+
+/* ---------- 导弹更新 ---------- */
+function updateMissile(dt) {
+  const w = GameState.winState;
+  if (!w || !w.missile || !w.missileActive) return;
+
+  const missile = w.missile;
+  const tank = w.tank;
+
+  // 目标点：坦克上方一点
+  const targetPos = tank.position.clone();
+  targetPos.y += 1.5;
+
+  const toTarget = targetPos.clone().sub(missile.position);
+  const dist = toTarget.length();
+
+  // 转向
+  const desiredDir = toTarget.clone().normalize();
+  const desiredVel = desiredDir.clone().multiplyScalar(w.missileVel.length());
+
+  // 转向速率
+  const turnRate = 3.5;
+  w.missileVel.lerp(desiredVel, Math.min(1, turnRate * dt));
+
+  // 距离越近速度越慢（戏剧效果，永不真正击中）
+  let speedMul = 1;
+  if (dist < 30) speedMul = 0.65;
+  if (dist < 15) speedMul = 0.4;
+
+  missile.position.addScaledVector(w.missileVel, dt * speedMul);
+
+  // 朝向
+  const v = w.missileVel.clone().normalize();
+  const targetRot = Math.atan2(-v.z, v.x);
+  let diff = targetRot - missile.rotation.y;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  missile.rotation.y += diff * Math.min(1, dt * 8);
+
+  // 尾焰脉动
+  const flame = missile.getObjectByName('flame');
+  const flameInner = missile.getObjectByName('flameInner');
+  if (flame) {
+    const s = 1 + Math.sin(performance.now() * 0.03) * 0.15;
+    flame.scale.setScalar(s);
+  }
+  if (flameInner) {
+    const s = 1 + Math.sin(performance.now() * 0.04 + 1) * 0.2;
+    flameInner.scale.setScalar(s);
+  }
+
+  // 更新尾迹
+  updateMissileTrail();
+}
+
+/* ---------- 胜利动画主循环 ---------- */
 function updateWinAnimation(dt) {
   const w = GameState.winState;
   if (!w) return;
   w.t += dt;
 
-  // 阶段 1：0 ~ 1.0s 显示 !
-  if (w.sprite) {
-    const bob = Math.sin(w.t * 6) * 0.6;
-    w.sprite.position.y = w.baseY + 6.5 + bob;
-    const s = 1 + Math.sin(w.t * 8) * 0.12;
-    w.sprite.scale.set(4 * s, 8 * s, 1);
+  // === 阶段 1：alert ===
+  if (w.phase === 'alert') {
+    if (w.sprite) {
+      const pulse = 1 + Math.sin(w.t * 10) * 0.15;
+      w.sprite.scale.set(4 * pulse, 8 * pulse, 1);
+      w.sprite.position.y = w.baseY + 7 + Math.sin(w.t * 6) * 0.5;
+    }
+    if (w.t > 0.6) {
+      w.phase = 'missile';
+      w.t = 0;
+      spawnMissile();
+    }
+    return;
   }
 
-  // 阶段 2：1.0s ~ 2.6s 坦克冲出地图
-  if (w.t > 1.0 && w.t < 2.6) {
-    const speed = 45;
-    const step = speed * dt;
-    w.tank.position.x += w.dir.x * step;
-    w.tank.position.z += w.dir.z * step;
+  // === 阶段 2：missile ===
+  if (w.phase === 'missile') {
+    if (w.sprite) {
+      const pulse = 1 + Math.sin(w.t * 10) * 0.15;
+      w.sprite.scale.set(4 * pulse, 8 * pulse, 1);
+      w.sprite.position.y = w.baseY + 7 + Math.sin(w.t * 6) * 0.5;
+    }
+
+    updateMissile(dt);
+
+    if (w.missile) {
+      const dist = w.missile.position.distanceTo(w.tank.position);
+      if (dist < 45) {
+        w.phase = 'escape';
+        w.escapeT = 0;
+        // 让导弹减速，制造“永远差一点”的感觉
+        if (w.missileVel) {
+          w.missileVel.setLength(Math.max(30, w.missileVel.length() * 0.7));
+        }
+      }
+    }
+    return;
+  }
+
+  // === 阶段 3：escape ===
+  if (w.phase === 'escape') {
+    w.escapeT += dt;
+
+    // 坦克朝边缘冲刺
+    const SPEED = 55;
+    w.tank.position.x += w.dir.x * SPEED * dt;
+    w.tank.position.z += w.dir.z * SPEED * dt;
     w.tank.position.y = terrainHeight(w.tank.position.x, w.tank.position.z);
 
-    // 车体朝向运动方向
+    // 坦克朝向运动方向
     const targetRot = Math.atan2(-w.dir.z, w.dir.x);
-    // 平滑转向
     let diff = targetRot - w.tank.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    w.tank.rotation.y += diff * Math.min(1, dt * 8);
-  }
+    w.tank.rotation.y += diff * Math.min(1, dt * 6);
 
-  // 阶段 3：结束 → 结算
-  if (w.t >= 2.6) {
-    if (w.sprite) {
-      GameState.scene.remove(w.sprite);
-      GameState.winSprite = null;
+    // 导弹继续追
+    updateMissile(dt);
+
+    // 检查是否跑出地图
+    const out = GameState.terrainSize / 2 + 30;
+    if (Math.abs(w.tank.position.x) > out || Math.abs(w.tank.position.z) > out) {
+      // 清掉导弹和尾迹
+      if (w.missile) {
+        GameState.scene.remove(w.missile);
+        w.missile = null;
+      }
+      if (GameState.missileTrail) {
+        GameState.scene.remove(GameState.missileTrail);
+        GameState.missileTrail.geometry.dispose();
+        GameState.missileTrail.material.dispose();
+        GameState.missileTrail = null;
+      }
+      if (w.sprite) {
+        GameState.scene.remove(w.sprite);
+        GameState.winSprite = null;
+      }
+      GameState.winState = null;
+      showResult();
     }
-    GameState.winState = null;
-    showResult();
   }
 }
 
-/* ==================== 18. 结算界面 ==================== */
+/* ==================== 19. 结算 ==================== */
 function showResult() {
   const p = GameState.panel;
   p.querySelector('#ftg-result').style.display = 'flex';
-
   p.querySelector('#ftg-result-time').textContent = GameState.elapsed.toFixed(2) + 's';
 
-  // 坦克名称
-  const tankTypeEl = p.querySelector('#ftg-result-tankname');
-  tankTypeEl.textContent = '你找到了一辆藏匿的坦克';
+  const nameEl = p.querySelector('#ftg-result-tankname');
+  nameEl.textContent = GameState.targetType === 'MBT'
+    ? '你找到了一辆主战坦克'
+    : '你找到了一辆坦克歼击车';
 
-  // 随机推荐一辆站内坦克
   const cardEl = p.querySelector('#ftg-result-card');
-  let pick = null;
+  let tk = null;
   try {
     if (typeof tanks !== 'undefined' && tanks.length) {
-      pick = tanks[Math.floor(Math.random() * tanks.length)];
+      tk = tanks[Math.floor(Math.random() * tanks.length)];
     }
   } catch (e) {}
 
-  if (pick) {
+  if (tk) {
     cardEl.style.display = 'block';
     cardEl.innerHTML = `
       <div style="display:flex;gap:12px;align-items:center;">
-        <img src="${esc(pick.imgs[0] || '')}" alt=""
+        <img src="${esc(tk.imgs[0] || '')}" alt=""
              style="width:72px;height:72px;object-fit:contain;background:#1a1a1e;border-radius:10px;flex-shrink:0;"
              onerror="this.style.opacity='0.3'">
         <div style="flex:1;min-width:0;text-align:left;">
-          <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:3px;">${esc(pick.name)}</div>
-          <div style="font-size:11px;color:#8a8a92;line-height:1.4;">${esc(getCardInfoSafe(pick))}</div>
+          <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:3px;">${esc(tk.name)}</div>
+          <div style="font-size:11px;color:#8a8a92;line-height:1.4;">${esc(getCardInfoSafe(tk))}</div>
           <div style="font-size:11px;color:#ffd83a;margin-top:6px;">点击查看详情 →</div>
         </div>
       </div>
@@ -1362,10 +1982,9 @@ function showResult() {
     cardEl.onclick = () => {
       closeFindTankGame();
       if (typeof showTankDetail === 'function') {
-        setTimeout(() => showTankDetail(pick), 120);
+        setTimeout(() => showTankDetail(tk), 120);
       }
     };
-    // hover 效果
     cardEl.onmouseenter = () => { cardEl.style.background = 'rgba(255,255,255,0.09)'; cardEl.style.borderColor = 'rgba(255,216,58,0.4)'; };
     cardEl.onmouseleave = () => { cardEl.style.background = 'rgba(255,255,255,0.05)'; cardEl.style.borderColor = 'rgba(255,255,255,0.1)'; };
   } else {
@@ -1375,11 +1994,11 @@ function showResult() {
   if (typeof playSound === 'function') playSound('open');
 }
 
-/* ==================== 19. 主循环 ==================== */
+/* ==================== 20. 主循环 ==================== */
 function startGameLoop() {
   if (GameState.animId) return;
   if (!GameState.clock) GameState.clock = new THREE.Clock();
-  GameState.clock.getDelta(); // 重置
+  GameState.clock.getDelta();
 
   const loop = () => {
     GameState.animId = requestAnimationFrame(loop);
@@ -1387,20 +2006,16 @@ function startGameLoop() {
 
     if (GameState.controls) GameState.controls.update();
 
-    // 计时
     if (GameState.phase === 'playing' && !GameState.locked) {
       GameState.elapsed = (performance.now() - GameState.startTime) / 1000;
       const t = document.getElementById('ftg-timer');
       if (t) t.textContent = GameState.elapsed.toFixed(1);
     }
 
-    // 粒子
     updateParticles(dt);
 
-    // 胜利动画
     if (GameState.winState) updateWinAnimation(dt);
 
-    // 渲染
     if (GameState.renderer && GameState.scene && GameState.camera) {
       GameState.renderer.render(GameState.scene, GameState.camera);
     }
@@ -1415,13 +2030,12 @@ function stopGameLoop() {
   }
 }
 
-/* ==================== 20. ESC 键 ==================== */
+/* ==================== 21. ESC ==================== */
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!GameState.panel || GameState.panel.style.display === 'none') return;
   if (GameState.phase === 'menu') { closeFindTankGame(); return; }
   if (GameState.phase === 'playing') { closeFindTankGame(); return; }
-  // 结算界面 → 下一关
   if (GameState.phase === 'won') {
     GameState.level++;
     beginLevel(true);
