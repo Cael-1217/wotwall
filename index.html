@@ -223,6 +223,12 @@
         </label>
         <div class="preview-grid" id="sub-preview"></div>
 
+        <!-- 实验性 3D 概览开关 -->
+        <div class="tool-row checkbox-row" style="margin-top:14px;">
+          <input type="checkbox" id="sub-has-3d">
+          <span>实验性 3D 概览（勾选后，详情页将显示"生成 3D 概览"按钮）</span>
+        </div>
+
         <div class="progress-track" id="sub-progress-track" style="display:none;">
           <div class="progress-fill" id="sub-progress-fill"></div>
         </div>
@@ -411,6 +417,7 @@
     <div id="detail-author-zone"></div>
     <div id="detail-fav-container" style="margin-bottom:14px;"></div>
     <button class="btn btn-primary" id="btn-share-card" style="width:100%; margin-bottom:14px;">生成分享图</button>
+    <button class="btn btn-ghost" id="btn-3d-preview" style="width:100%; margin-bottom:14px; display:none;">🧊 生成 3D 概览</button>
     <div id="desc"></div>
     <div id="related-zone"></div>
   </div>
@@ -492,5 +499,6 @@
 <script src="audio.js"></script>
 <script src="app.js"></script>
 <script src="share.js"></script>
+<script src="3d-preview.js"></script>
 </body>
 </html>

@@ -316,6 +316,24 @@ function showTankDetail(t) {
 
   renderRelated(t);
 
+  // 3D 概览按钮：仅对投稿时勾选了 has3D 的展品显示
+  const btn3d = $('btn-3d-preview');
+  if (btn3d) {
+    if (t.has3D) {
+      btn3d.style.display = 'block';
+      btn3d.onclick = () => {
+        if (typeof window.open3DPreview === 'function') {
+          window.open3DPreview(t);
+        } else {
+          if (typeof toast === 'function') toast('3D 模块未加载');
+        }
+      };
+    } else {
+      btn3d.style.display = 'none';
+      btn3d.onclick = null;
+    }
+  }
+
   updateFavButton(t.name);
   detail.classList.add('active');
   detail.scrollTop = 0;
