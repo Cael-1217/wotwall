@@ -1,67 +1,67 @@
-// ==================== find-tank-game.js — 剧情模式 v5 ====================
+// ==================== find-tank-game.js — 计时模式 v4.5 ====================
 
-/* ============================================================
-   全局状态
-   ============================================================ */
-const StoryGame = {
-  // Three
-  scene: null, camera: null, renderer: null,
-  animId: null, clock: null, panel: null,
-  phase: 'menu',   // menu | playing | dialog
+/* ============ 全局状态 ============ */
+const GameState = {
+  scene: null, camera: null, renderer: null, controls: null,
+  animId: null, clock: null,
+  panel: null,
+  phase: 'menu',        // menu | playing | won
+  starting: false,
 
-  // 玩家
-  playerTank: null,
-  px: -75, pz: 95, ph: Math.PI,
-  playerSpeed: 0,
-  maxSpeed: 22,
-  minSpeed: -8,
+  // 计时模式
+  timeLeft: 60,
+  foundCount: 0,
+  locked: false,
+  roundStart: 0,
+  bestScore: 0,
 
-  // 视角
-  camYaw: 0, camPitch: -0.12,
-  menuAngle: 0,
+  // 天气（渐变）
+  weather: {
+    current: 'summer',
+    target: 'summer',
+    params: {
+      bg: new THREE.Color(0x8fc8f0),
+      fog: new THREE.Color(0xb8d8ee),
+      fogNear: 150, fogFar: 480,
+      hemi: 0.7, ambient: 0.35,
+      dir: 1.0, dirColor: new THREE.Color(0xfff3e0),
+      rain: 0, snow: 0,
+    },
+    holdTimer: 30,
+    transitionT: 1,      // 0..1
+    transitionDur: 8,    // 秒
+  },
+  rainParticles: null,
+  snowParticles: null,
 
-  // 输入
-  keys: { up: false, down: false, left: false, right: false },
-  drag: null,
+  // 场景
+  targetTank: null,
+  objects: [],
+  dirLight: null, ambientLight: null, hemiLight: null,
+  winState: null, winSprite: null,
+  missileTrail: null, missileTrailHistory: [],
 
-  // 游戏
-  score: 0, missiles: 2,
-  totalTargets: 0, capturedCount: 0,
-  targetTanks: [],
-  capturedIds: new Set(),
+  // 地图（固定）
+  terrainAmp: 6,
+  terrainSize: 400,
+  terrainFeatures: [],
+  occupiedBoxes: [],
+  treePositions: [],
+  tankSpots: [],
+  usedSpots: new Set(),
+  texCache: {},
 
-  // NPC
-  npcTank: null,
-  npcPos: { x: -60, z: 85 },
-  npcRadius: 12,
+  raycaster: null, pointer: null,
+  pointerDown: null,
 
-  // 地图
-  MAP_SIZE: 500,
-  MAP_HALF: 250,
-  SEA_RADIUS: 200,
-
-  // 光照
-  ambient: null, dir: null, hemi: null,
-
-  // 小地图
-  minimapCanvas: null,
-  minimapCtx: null,
-  minimapBg: null,
-
-  dialogOpen: false,
-  raycaster: null,
-  pointer: null,
-  clock_last: 0,
+  // 相机（不能转到地图下方）
+  cameraMinY: 2,
 };
 
-const GAME_LIB_PATHS = { three: 'three.min.js' };
+const GAME_LIB_PATHS = { three: 'three.min.js', orbit: 'OrbitControls.js' };
 
-/* ============================================================
-   工具函数
-   ============================================================ */
-function _nextFrame() {
-  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-}
+/* ============ 工具 ============ */
+function _nextFrame() { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }
 function _loadScriptOnce(src) {
   return new Promise((resolve, reject) => {
     const ex = document.querySelector(`script[src="${src}"]`);
@@ -85,1117 +85,1293 @@ async function ensureThreeLibs() {
   if (!window.THREE || typeof window.THREE.WebGLRenderer !== 'function') {
     throw new Error('Three.js 加载失败：请确认 three.min.js 在仓库根目录');
   }
+  if (!window.THREE.OrbitControls) {
+    try { await _loadScriptOnce(GAME_LIB_PATHS.orbit); }
+    catch (e) { console.warn('[find-tank] OrbitControls 未加载，使用固定视角'); }
+  }
 }
+function getCardInfoSafe(t) {
+  try { return (typeof getCardInfoText === 'function') ? getCardInfoText(t) : ''; }
+  catch { return ''; }
+}
+function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s); }
 function rand(a, b) { return a + Math.random() * (b - a); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
-function lerp(a, b, t) { return a + (b - a) * t; }
 
-/* ============================================================
-   地形高度函数（固定地图）
-   ============================================================ */
-function mountainFeature(x, z, cx, cz, radius, height) {
-  const d = Math.hypot(x - cx, z - cz);
-  if (d > radius) return 0;
-  const t = 1 - d / radius;
-  return Math.pow(Math.sin(t * Math.PI / 2), 1.6) * height;
-}
-function basinFeature(x, z, cx, cz, radius, depth) {
-  const d = Math.hypot(x - cx, z - cz);
-  if (d > radius) return 0;
-  const t = 1 - d / radius;
-  return Math.pow(t, 1.6) * depth;
+// 固定种子 RNG（保证地图布局每次相同）
+function makeRNG(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
 }
 
-// 河流路径（从西北山地 → 港口出海）
-const RIVER_PATH = [
-  [-100, 60], [-70, 40], [-40, 20], [-10, 0],
-  [30, -20], [70, -45], [110, -75], [140, -100]
-];
-function distPointToSeg(px, pz, ax, az, bx, bz) {
-  const abx = bx - ax, abz = bz - az;
-  const apx = px - ax, apz = pz - az;
-  const ab2 = abx * abx + abz * abz;
-  const t = ab2 > 0 ? clamp((apx * abx + apz * abz) / ab2, 0, 1) : 0;
-  const cx = ax + abx * t, cz = az + abz * t;
-  return Math.hypot(px - cx, pz - cz);
-}
-function riverInfluence(x, z) {
-  let minD = Infinity;
-  for (let i = 0; i < RIVER_PATH.length - 1; i++) {
-    const [ax, az] = RIVER_PATH[i];
-    const [bx, bz] = RIVER_PATH[i + 1];
-    const d = distPointToSeg(x, z, ax, az, bx, bz);
-    if (d < minD) minD = d;
-  }
-  const w = 9;
-  if (minD > w) return 0;
-  return 1 - minD / w;
-}
+/* ============ 1. 面板 ============ */
+function initFindTankGame() {
+  if (GameState.panel) return GameState.panel;
+  const panel = document.createElement('div');
+  panel.id = 'find-tank-panel';
+  panel.style.cssText = 'position:fixed;inset:0;z-index:400;background:#0b0b0e;display:none;flex-direction:column;overflow:hidden;';
 
-function terrainHeight(x, z) {
-  const r = Math.hypot(x, z);
-  let h = 0;
+  panel.innerHTML = `
+    <!-- HUD -->
+    <div id="ftg-hud" style="display:none;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top));background:linear-gradient(to bottom,rgba(10,10,14,0.96),rgba(10,10,14,0.72));color:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0;z-index:5;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+        <span>⏱ <b id="ftg-timer" style="color:#ffd83a;font-family:ui-monospace,monospace;">60.0</b>s</span>
+        <span>🏆 <b id="ftg-found" style="color:#4aff4a;">0</b></span>
+        <span id="ftg-weather-info" style="color:#8a8a92;font-size:12px;"></span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button id="ftg-btn-restart" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#e8e8ea;font-family:inherit;font-size:12px;cursor:pointer;">重开</button>
+        <button id="ftg-btn-quit" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#e8e8ea;font-family:inherit;font-size:12px;cursor:pointer;">退出</button>
+      </div>
+    </div>
 
-  // 基础丘陵
-  h += Math.sin(x * 0.026) * Math.cos(z * 0.024) * 3.2;
-  h += Math.sin(x * 0.062 + 1.2) * Math.cos(z * 0.058 + 0.5) * 1.5;
-  h += Math.sin(x * 0.14 + 2.5) * Math.cos(z * 0.13 + 1.8) * 0.7;
-
-  // 西北山脉（主峰群）
-  h += mountainFeature(x, z, -140, -110, 110, 62);
-  h += mountainFeature(x, z, -80, -140, 70, 38);
-  h += mountainFeature(x, z, -170, -50, 55, 28);
-
-  // 出生点附近的小悬崖（瀑布源头）
-  h += mountainFeature(x, z, -85, 75, 22, 9);
-
-  // 湖泊
-  h -= basinFeature(x, z, -20, -60, 42, 9);
-
-  // 沼泽地（西南）
-  h -= basinFeature(x, z, 90, 140, 65, 4.5);
-
-  // 工业区平坦化（东部）
-  const indD = Math.hypot(x - 110, z - 60);
-  if (indD < 55) {
-    const t = 1 - indD / 55;
-    h = h * (1 - t * 0.88) + 0.8 * t;
-  }
-
-  // 港口平地（东南沿海）
-  const portD = Math.hypot(x - 150, z - 100);
-  if (portD < 50) {
-    const t = 1 - portD / 50;
-    h = h * (1 - t * 0.9) + 0.5 * t;
-  }
-
-  // 河流下切
-  h -= riverInfluence(x, z) * 3.2;
-
-  // 海岸衰减
-  const seaStart = StoryGame.SEA_RADIUS - 45;
-  if (r > seaStart) {
-    const t = Math.min(1, (r - seaStart) / 45);
-    h = h * (1 - t * t) - 8 * t * t;
-  }
-  return h;
-}
-
-/* ============================================================
-   地形着色
-   ============================================================ */
-function terrainColor(x, z, h) {
-  if (h < 0.3) return [0.13, 0.28, 0.42];
-  if (h < 1.2) return [0.72, 0.66, 0.5];
-
-  // 沼泽
-  if (Math.hypot(x - 90, z - 140) < 65 && h < 5) return [0.32, 0.4, 0.22];
-  // 工业
-  if (Math.hypot(x - 110, z - 60) < 55) return [0.42, 0.42, 0.44];
-  // 港口
-  if (Math.hypot(x - 150, z - 100) < 50) return [0.55, 0.55, 0.56];
-
-  if (h < 6) return [0.38, 0.56, 0.28];
-  if (h < 16) return [0.3, 0.48, 0.22];
-  if (h < 30) return [0.42, 0.42, 0.32];
-  if (h < 45) return [0.55, 0.54, 0.5];
-  return [0.88, 0.9, 0.92];
-}
-
-/* ============================================================
-   1. 面板
-   ============================================================ */
-function initPanel() {
-  if (StoryGame.panel) return StoryGame.panel;
-  const p = document.createElement('div');
-  p.id = 'story-panel';
-  p.style.cssText = 'position:fixed;inset:0;z-index:400;background:#0b0b0e;display:none;overflow:hidden;font-family:inherit;';
-
-  p.innerHTML = `
-    <div id="story-canvas" style="position:absolute;inset:0;"></div>
+    <div id="game-canvas-wrap" style="flex:1;position:relative;min-height:0;background:#0b0b0e;overflow:hidden;">
+      <div id="ftg-error" style="display:none;position:absolute;inset:0;z-index:10;align-items:center;justify-content:center;background:rgba(11,11,14,0.94);color:#ff8a8a;font-size:14px;padding:24px;text-align:center;white-space:pre-wrap;line-height:1.6;"></div>
+    </div>
 
     <!-- 主菜单 -->
-    <div id="story-menu" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:center;padding:0 60px;background:linear-gradient(90deg, rgba(11,11,14,0.86) 0%, rgba(11,11,14,0.4) 40%, rgba(11,11,14,0) 70%);color:#fff;">
-      <h1 style="margin:0;font-size:44px;font-weight:800;letter-spacing:-0.03em;background:linear-gradient(135deg,#ffd83a,#c9a860);-webkit-background-clip:text;background-clip:text;color:transparent;max-width:520px;">寻找坦克</h1>
-      <p style="color:#a8a8b0;font-size:14px;margin:10px 0 32px;max-width:480px;line-height:1.8;">
-        一场关于失踪装甲部队的搜寻任务<br>
-        穿越森林、山地、沼泽、工业区与港口<br>
-        找到藏匿的坦克，凭积分兑换导弹
+    <div id="ftg-menu" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%, #1c2028, #0b0b0e 70%);color:#fff;padding:24px;text-align:center;">
+      <div style="font-size:52px;margin-bottom:8px;filter:drop-shadow(0 6px 20px rgba(255,216,58,0.35));">🎯</div>
+      <h1 style="margin:0;font-size:32px;font-weight:800;letter-spacing:-0.02em;background:linear-gradient(135deg,#ffd83a,#c9a860);-webkit-background-clip:text;background-clip:text;color:transparent;">寻找坦克</h1>
+      <p style="color:#8a8a92;font-size:13px;margin:12px 0 26px;line-height:1.75;max-width:360px;">
+        60 秒限时挑战<br>
+        每找到一辆坦克立刻刷新下一辆<br>
+        天气会随时间渐变，注意边缘浓雾
       </p>
-      <div style="display:flex;flex-direction:column;gap:12px;max-width:260px;">
-        <button id="story-btn-start" style="padding:14px 32px;border-radius:999px;border:none;background:linear-gradient(135deg,#ffd83a,#c9a860);color:#1a1611;font-family:inherit;font-size:16px;font-weight:700;letter-spacing:0.05em;cursor:pointer;box-shadow:0 8px 28px rgba(255,216,58,0.35);">🚀 开始冒险</button>
-        <button id="story-btn-quit" style="padding:12px 32px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.04);color:#c8c8d0;font-family:inherit;font-size:14px;cursor:pointer;">退出</button>
-      </div>
-      <div id="story-status" style="color:#8a8a92;font-size:12px;margin-top:24px;height:16px;"></div>
+      <button id="ftg-btn-start" style="padding:14px 56px;border-radius:999px;border:none;background:linear-gradient(135deg,#ffd83a,#c9a860);color:#1a1611;font-family:inherit;font-size:16px;font-weight:700;letter-spacing:0.05em;cursor:pointer;box-shadow:0 8px 28px rgba(255,216,58,0.35);margin-bottom:12px;min-width:220px;">开始挑战</button>
+      <button id="ftg-btn-menu-quit" style="padding:12px 40px;border-radius:999px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#8a8a92;font-family:inherit;font-size:14px;cursor:pointer;">退出</button>
+      <div id="ftg-menu-status" style="color:#8a8a92;font-size:12px;margin-top:22px;height:16px;"></div>
     </div>
 
-    <!-- HUD -->
-    <div id="story-hud" style="display:none;position:absolute;inset:0;z-index:15;pointer-events:none;">
-      <!-- 左上：积分 / 导弹 -->
-      <div style="position:absolute;top:14px;left:14px;display:flex;gap:10px;padding:10px 16px;border-radius:12px;background:rgba(10,10,14,0.72);border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(10px);color:#fff;font-size:14px;pointer-events:auto;">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:#8a8a92;font-size:12px;">积分</span>
-          <b id="story-score" style="color:#ffd83a;font-size:16px;font-family:ui-monospace,monospace;">0</b>
-        </div>
-        <div style="width:1px;background:rgba(255,255,255,0.15);"></div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:#8a8a92;font-size:12px;">导弹</span>
-          <b id="story-missiles" style="color:#ff6a6a;font-size:16px;font-family:ui-monospace,monospace;">2</b>
-        </div>
+    <!-- 结算 -->
+    <div id="ftg-result" style="position:absolute;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%, rgba(28,32,40,0.97), rgba(11,11,14,0.99));color:#fff;padding:24px;text-align:center;overflow-y:auto;">
+      <div style="font-size:44px;margin-bottom:6px;">🏁</div>
+      <h2 style="margin:0 0 6px;font-size:26px;font-weight:800;color:#ffd83a;">时间到！</h2>
+      <p style="color:#8a8a92;font-size:13px;margin:0 0 18px;">本轮战绩</p>
+      <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px 32px;margin-bottom:12px;">
+        <div style="font-size:11px;color:#8a8a92;letter-spacing:0.15em;margin-bottom:4px;">找到坦克</div>
+        <div id="ftg-result-found" style="font-size:44px;font-weight:800;font-family:ui-monospace,monospace;color:#4aff4a;">0</div>
       </div>
-
-      <!-- 右上：小地图 -->
-      <div style="position:absolute;top:14px;right:14px;padding:8px;border-radius:12px;background:rgba(10,10,14,0.72);border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(10px);pointer-events:auto;">
-        <canvas id="story-minimap" width="160" height="160" style="display:block;border-radius:8px;"></canvas>
-        <div style="text-align:center;color:#8a8a92;font-size:10px;margin-top:4px;font-family:ui-monospace,monospace;">MAP</div>
+      <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:10px 24px;margin-bottom:22px;">
+        <div style="font-size:11px;color:#8a8a92;letter-spacing:0.12em;">历史最佳</div>
+        <div id="ftg-result-best" style="font-size:22px;font-weight:700;color:#ffd83a;font-family:ui-monospace,monospace;">0</div>
       </div>
-
-      <!-- 底部：操作按钮 -->
-      <div id="story-controls" style="position:absolute;bottom:20px;right:20px;pointer-events:auto;user-select:none;">
-        <div style="display:grid;grid-template-columns:repeat(3, 52px);grid-template-rows:repeat(3, 52px);gap:6px;">
-          <div></div>
-          <button data-k="up" style="grid-column:2;grid-row:1;width:52px;height:52px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(20,20,26,0.75);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(8px);">▲</button>
-          <div></div>
-          <button data-k="left" style="grid-column:1;grid-row:2;width:52px;height:52px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(20,20,26,0.75);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(8px);">◀</button>
-          <div></div>
-          <button data-k="right" style="grid-column:3;grid-row:2;width:52px;height:52px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(20,20,26,0.75);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(8px);">▶</button>
-          <div></div>
-          <button data-k="down" style="grid-column:2;grid-row:3;width:52px;height:52px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(20,20,26,0.75);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(8px);">▼</button>
-          <div></div>
-        </div>
+      <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;justify-content:center;">
+        <button id="ftg-btn-retry" style="padding:12px 32px;border-radius:999px;border:none;background:linear-gradient(135deg,#ffd83a,#c9a860);color:#1a1611;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(255,216,58,0.3);">再来一局 →</button>
+        <button id="ftg-btn-result-quit" style="padding:12px 32px;border-radius:999px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#e8e8ea;font-family:inherit;font-size:15px;cursor:pointer;">返回主菜单</button>
       </div>
-
-      <!-- 右下：退出 -->
-      <button id="story-btn-exit" style="position:absolute;bottom:20px;left:20px;pointer-events:auto;padding:10px 18px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(20,20,26,0.75);color:#c8c8d0;font-family:inherit;font-size:13px;cursor:pointer;backdrop-filter:blur(8px);">返回主菜单</button>
-
-      <!-- 提示 -->
-      <div id="story-hint" style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:999px;background:rgba(10,10,14,0.82);border:1px solid rgba(255,216,58,0.4);color:#ffd83a;font-size:13px;white-space:nowrap;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
-    </div>
-
-    <!-- 对话框 -->
-    <div id="story-dialog" style="display:none;position:absolute;bottom:0;left:0;right:0;z-index:30;padding:24px;background:linear-gradient(to top, rgba(10,10,14,0.98) 0%, rgba(10,10,14,0.92) 70%, rgba(10,10,14,0) 100%);color:#fff;">
-      <div style="max-width:640px;margin:0 auto;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ffd83a,#c9a860);display:flex;align-items:center;justify-content:center;font-size:18px;">🎖</div>
-          <div style="font-weight:700;font-size:14px;">指挥官 · "先锋号"</div>
-        </div>
-        <div id="story-dialog-text" style="font-size:15px;line-height:1.75;color:#e8e8ea;margin-bottom:16px;white-space:pre-wrap;"></div>
-        <div id="story-dialog-options" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      <div style="width:100%;max-width:400px;">
+        <div style="font-size:11px;color:#8a8a92;letter-spacing:0.15em;margin-bottom:10px;">🎁 随机推荐</div>
+        <div id="ftg-result-card" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;cursor:pointer;transition:all 0.2s;display:none;"></div>
       </div>
     </div>
   `;
-  document.body.appendChild(p);
-  StoryGame.panel = p;
-  StoryGame.minimapCanvas = p.querySelector('#story-minimap');
-  StoryGame.minimapCtx = StoryGame.minimapCanvas.getContext('2d');
+  document.body.appendChild(panel);
+  GameState.panel = panel;
 
-  // 事件
-  p.querySelector('#story-btn-start').addEventListener('click', startAdventure);
-  p.querySelector('#story-btn-quit').addEventListener('click', closeStoryGame);
-  p.querySelector('#story-btn-exit').addEventListener('click', backToMenu);
+  panel.querySelector('#ftg-btn-quit').addEventListener('click', closeFindTankGame);
+  panel.querySelector('#ftg-btn-restart').addEventListener('click', () => beginLevel(true));
+  panel.querySelector('#ftg-btn-menu-quit').addEventListener('click', closeFindTankGame);
+  panel.querySelector('#ftg-btn-start').addEventListener('click', () => beginLevel(false));
+  panel.querySelector('#ftg-btn-retry').addEventListener('click', () => beginLevel(true));
+  panel.querySelector('#ftg-btn-result-quit').addEventListener('click', showMenu);
 
-  p.querySelectorAll('#story-controls [data-k]').forEach(btn => {
-    const k = btn.dataset.k;
-    const on = e => { e.preventDefault(); StoryGame.keys[k] = true; };
-    const off = e => { e.preventDefault(); StoryGame.keys[k] = false; };
-    btn.addEventListener('pointerdown', on);
-    btn.addEventListener('pointerup', off);
-    btn.addEventListener('pointercancel', off);
-    btn.addEventListener('pointerleave', off);
+  const wrap = panel.querySelector('#game-canvas-wrap');
+  wrap.addEventListener('pointerdown', e => {
+    GameState.pointerDown = { x: e.clientX, y: e.clientY, t: performance.now() };
   });
-
-  // 相机旋转（画布拖拽）
-  const canvasWrap = p.querySelector('#story-canvas');
-  canvasWrap.style.touchAction = 'none';
-  canvasWrap.addEventListener('pointerdown', e => {
-    if (StoryGame.phase !== 'playing') return;
-    if (e.target.closest('#story-hud')) return;
-    StoryGame.drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
-  });
-  canvasWrap.addEventListener('pointermove', e => {
-    if (!StoryGame.drag || StoryGame.drag.id !== e.pointerId) return;
-    const dx = e.clientX - StoryGame.drag.x;
-    const dy = e.clientY - StoryGame.drag.y;
-    StoryGame.drag.x = e.clientX;
-    StoryGame.drag.y = e.clientY;
-    StoryGame.camYaw += dx * 0.005;
-    StoryGame.camPitch = clamp(StoryGame.camPitch - dy * 0.005, -0.9, 0.5);
-  });
-  canvasWrap.addEventListener('pointerup', e => { StoryGame.drag = null; });
-  canvasWrap.addEventListener('pointercancel', () => { StoryGame.drag = null; });
-
-  // 画布点击（找坦克）
-  canvasWrap.addEventListener('click', e => {
-    if (StoryGame.phase !== 'playing') return;
-    if (e.target.closest('#story-hud')) return;
+  wrap.addEventListener('pointerup', e => {
+    const pd = GameState.pointerDown;
+    GameState.pointerDown = null;
+    if (!pd) return;
+    const dx = e.clientX - pd.x, dy = e.clientY - pd.y;
+    if (dx * dx + dy * dy > 36) return;
+    if (performance.now() - pd.t > 600) return;
     handleCanvasClick(e.clientX, e.clientY);
   });
 
   window.addEventListener('resize', () => {
-    if (p.style.display !== 'none') resizeRenderer();
+    if (panel.style.display !== 'none') updateViewport();
   });
-
-  return p;
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      if (panel.style.display !== 'none') updateViewport();
+    }).observe(wrap);
+  }
+  return panel;
 }
 
-/* ============================================================
-   2. 入口 / 退出
-   ============================================================ */
+/* ============ 2. 入口 ============ */
 async function startFindTankGame() {
-  const p = initPanel();
-  p.style.display = 'block';
+  const panel = initFindTankGame();
+  panel.style.display = 'flex';
+  showMenu();
   document.body.style.overflow = 'hidden';
   try { await ensureThreeLibs(); } catch (e) {}
-
-  if (!StoryGame.renderer) {
-    initScene();
-    buildMap();
-    buildPlayerTank();
-    buildNpcTank();
-    buildTargetTanks();
-    buildMinimapBg();
-  }
-  StoryGame.phase = 'menu';
-  p.querySelector('#story-menu').style.display = 'flex';
-  p.querySelector('#story-hud').style.display = 'none';
-  p.querySelector('#story-dialog').style.display = 'none';
-  startLoop();
 }
 
-function closeStoryGame() {
-  if (!StoryGame.panel) return;
-  StoryGame.panel.style.display = 'none';
+function showMenu() {
+  GameState.phase = 'menu';
+  const p = GameState.panel;
+  p.querySelector('#ftg-menu').style.display = 'flex';
+  p.querySelector('#ftg-result').style.display = 'none';
+  p.querySelector('#ftg-hud').style.display = 'none';
+  p.querySelector('#ftg-error').style.display = 'none';
+  p.querySelector('#ftg-menu-status').textContent = '';
+  if (GameState.animId) stopGameLoop();
+}
+
+function closeFindTankGame() {
+  if (!GameState.panel) return;
+  GameState.panel.style.display = 'none';
   document.body.style.overflow = '';
-  stopLoop();
+  stopGameLoop();
+  GameState.phase = 'menu';
+  if (typeof playSound === 'function') playSound('close');
 }
 
-function backToMenu() {
-  StoryGame.phase = 'menu';
-  const p = StoryGame.panel;
-  p.querySelector('#story-menu').style.display = 'flex';
-  p.querySelector('#story-hud').style.display = 'none';
-  p.querySelector('#story-dialog').style.display = 'none';
-  StoryGame.dialogOpen = false;
+/* ============ 3. 开始 ============ */
+async function beginLevel(isRetry) {
+  if (GameState.starting) return;
+  GameState.starting = true;
+  const p = GameState.panel;
+
+  try {
+    if (!window.THREE) await ensureThreeLibs();
+
+    p.querySelector('#ftg-menu').style.display = 'none';
+    p.querySelector('#ftg-result').style.display = 'none';
+    p.querySelector('#ftg-hud').style.display = 'flex';
+    p.querySelector('#ftg-error').style.display = 'none';
+
+    await _nextFrame();
+
+    GameState.phase = 'playing';
+    GameState.locked = false;
+    GameState.timeLeft = 60;
+    GameState.foundCount = 0;
+    GameState.winState = null;
+    GameState.winSprite = null;
+    GameState.roundStart = performance.now();
+
+    // 重置天气
+    resetWeather();
+
+    initThreeScene();
+    if (!isRetry || !GameState.mapBuilt) {
+      buildMap();
+      GameState.mapBuilt = true;
+    }
+    clearSceneEntities();
+    spawnTank();
+    startGameLoop();
+
+    updateHUD();
+  } catch (err) {
+    console.error('[find-tank] 启动失败:', err);
+    const errEl = p.querySelector('#ftg-error');
+    errEl.textContent = '⚠ 游戏启动失败\n\n' + (err && err.message ? err.message : String(err));
+    errEl.style.display = 'flex';
+  } finally {
+    GameState.starting = false;
+  }
 }
 
-async function startAdventure() {
-  const p = StoryGame.panel;
-  p.querySelector('#story-menu').style.display = 'none';
-  p.querySelector('#story-hud').style.display = 'block';
-  StoryGame.phase = 'playing';
+/* ============ 4. Three 场景 ============ */
+function initThreeScene() {
+  const wrap = document.getElementById('game-canvas-wrap');
+  if (!wrap) throw new Error('缺少画布容器');
+  if (!GameState.renderer) {
+    GameState.scene = new THREE.Scene();
+    GameState.scene.background = GameState.weather.params.bg.clone();
+    GameState.scene.fog = new THREE.Fog(
+      GameState.weather.params.fog.clone(),
+      GameState.weather.params.fogNear,
+      GameState.weather.params.fogFar
+    );
 
-  // 重置玩家到出生点
-  StoryGame.px = -75;
-  StoryGame.pz = 95;
-  StoryGame.ph = Math.PI;
-  StoryGame.playerSpeed = 0;
-  StoryGame.camYaw = 0;
-  StoryGame.camPitch = -0.12;
+    GameState.camera = new THREE.PerspectiveCamera(58, 1, 0.5, 900);
+    GameState.camera.position.set(0, 95, 130);
 
-  // 重置资源
-  StoryGame.score = 0;
-  StoryGame.missiles = 2;
-  StoryGame.capturedCount = 0;
-  StoryGame.capturedIds.clear();
-  updateHUD();
+    GameState.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    GameState.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    GameState.renderer.shadowMap.enabled = true;
+    GameState.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    wrap.appendChild(GameState.renderer.domElement);
 
-  // 重置目标坦克
-  StoryGame.targetTanks.forEach(t => {
-    t.tank.visible = true;
-    t.phase = 'idle';
-    t.t = 0;
-  });
+    if (THREE.OrbitControls) {
+      const controls = new THREE.OrbitControls(GameState.camera, GameState.renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      // ← 关键：视角不能转到地图下面
+      controls.minPolarAngle = 0.15;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      controls.minDistance = 25;
+      controls.maxDistance = 280;
+      controls.target.set(0, 0, 0);
+      controls.update();
+      GameState.controls = controls;
+    }
 
-  await _nextFrame();
-  resizeRenderer();
+    GameState.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 0.5);
+    GameState.scene.add(GameState.hemiLight);
+    GameState.ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+    GameState.scene.add(GameState.ambientLight);
+    GameState.dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    GameState.dirLight.position.set(80, 120, 60);
+    GameState.dirLight.castShadow = true;
+    GameState.dirLight.shadow.mapSize.width = 2048;
+    GameState.dirLight.shadow.mapSize.height = 2048;
+    const d = 220;
+    Object.assign(GameState.dirLight.shadow.camera, {
+      left: -d, right: d, top: d, bottom: -d, near: 1, far: 700,
+    });
+    GameState.dirLight.shadow.bias = -0.0006;
+    GameState.scene.add(GameState.dirLight);
+    GameState.scene.add(GameState.dirLight.target);
 
-  // 开场对话（延迟 600ms，等场景稳定）
-  setTimeout(() => {
-    showIntroDialog();
-  }, 800);
+    GameState.raycaster = new THREE.Raycaster();
+    GameState.pointer = new THREE.Vector2();
+    GameState.clock = new THREE.Clock();
+  }
+  updateViewport();
 }
 
-/* ============================================================
-   3. Three 初始化
-   ============================================================ */
-function initScene() {
-  const wrap = StoryGame.panel.querySelector('#story-canvas');
-
-  StoryGame.scene = new THREE.Scene();
-  StoryGame.scene.background = new THREE.Color(0x87ceeb);
-  StoryGame.scene.fog = new THREE.Fog(0xa8c8dd, 80, 280);
-
-  StoryGame.camera = new THREE.PerspectiveCamera(65, 1, 0.3, 800);
-  StoryGame.camera.position.set(0, 80, 120);
-
-  StoryGame.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  StoryGame.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  StoryGame.renderer.setClearColor(0x87ceeb, 1);
-  // 关闭阴影以提高性能（移动端）
-  StoryGame.renderer.shadowMap.enabled = false;
-  wrap.appendChild(StoryGame.renderer.domElement);
-
-  StoryGame.hemi = new THREE.HemisphereLight(0xcce0ff, 0x554433, 0.65);
-  StoryGame.scene.add(StoryGame.hemi);
-  StoryGame.ambient = new THREE.AmbientLight(0xffffff, 0.42);
-  StoryGame.scene.add(StoryGame.ambient);
-  StoryGame.dir = new THREE.DirectionalLight(0xfff3e0, 0.85);
-  StoryGame.dir.position.set(80, 120, 60);
-  StoryGame.scene.add(StoryGame.dir);
-
-  StoryGame.raycaster = new THREE.Raycaster();
-  StoryGame.pointer = new THREE.Vector2();
-  StoryGame.clock = new THREE.Clock();
-
-  resizeRenderer();
-}
-
-function resizeRenderer() {
-  const wrap = StoryGame.panel.querySelector('#story-canvas');
+function updateViewport() {
+  const wrap = document.getElementById('game-canvas-wrap');
+  if (!wrap) return;
   const w = Math.max(1, wrap.clientWidth);
   const h = Math.max(1, wrap.clientHeight);
-  StoryGame.renderer.setSize(w, h);
-  StoryGame.camera.aspect = w / h;
-  StoryGame.camera.updateProjectionMatrix();
+  if (GameState.renderer) GameState.renderer.setSize(w, h);
+  if (GameState.camera) {
+    GameState.camera.aspect = w / h;
+    GameState.camera.updateProjectionMatrix();
+  }
 }
 
-/* ============================================================
-   4. 生成地图（地形 + 水面 + 树 + 地标）
-   ============================================================ */
+/* ============ 5. 清场（只清动态实体，保留地图） ============ */
+function clearSceneEntities() {
+  if (!GameState.scene) return;
+  if (GameState.winSprite) { GameState.scene.remove(GameState.winSprite); GameState.winSprite = null; }
+  if (GameState.missileTrail) {
+    GameState.scene.remove(GameState.missileTrail);
+    GameState.missileTrail.geometry.dispose();
+    GameState.missileTrail.material.dispose();
+    GameState.missileTrail = null;
+    GameState.missileTrailHistory = [];
+  }
+  GameState.objects.forEach(obj => {
+    GameState.scene.remove(obj);
+    if (obj.traverse) {
+      obj.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          const mats = Array.isArray(c.material) ? c.material : [c.material];
+          mats.forEach(m => m.dispose && m.dispose());
+        }
+      });
+    }
+  });
+  GameState.objects = [];
+  GameState.targetTank = null;
+  GameState.winState = null;
+  GameState.usedSpots.clear();
+}
+
+/* ============ 6. 地形高度 ============ */
+function terrainHeight(x, z) {
+  const a = GameState.terrainAmp;
+  let h = 0;
+  if (a > 0.01) {
+    h = Math.sin(x * 0.018) * Math.cos(z * 0.018) * a
+      + Math.sin(x * 0.045 + 1.3) * Math.cos(z * 0.038 + 0.6) * a * 0.55
+      + Math.sin(x * 0.09 + 2.1) * Math.cos(z * 0.1 + 1.9) * a * 0.28;
+  }
+  for (const f of GameState.terrainFeatures) {
+    if (f.type === 'mountain') {
+      const dx = x - f.x, dz = z - f.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d < f.r) {
+        const t = 1 - d / f.r;
+        h += t * t * (3 - 2 * t) * f.height;
+      }
+    } else if (f.type === 'lake') {
+      const dx = x - f.x, dz = z - f.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d < f.r) {
+        const t = 1 - d / f.r;
+        h -= t * t * (3 - 2 * t) * f.depth;
+      }
+    } else if (f.type === 'flat') {
+      const dx = x - f.x, dz = z - f.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d < f.r) {
+        const t = 1 - d / f.r;
+        h = h * (1 - t * 0.9) + f.height * t;
+      }
+    }
+  }
+  // 地图边缘：渐升→渐降，配合浓雾
+  const edgeStart = GameState.terrainSize / 2 - 70;
+  const r = Math.hypot(x, z);
+  if (r > edgeStart) {
+    const t = Math.min(1, (r - edgeStart) / 60);
+    // 边缘轻微抬高，形成视觉屏障
+    h += t * 4;
+  }
+  return h;
+}
+
+/* ============ 7. 地面纹理 ============ */
+function makeGroundTexture() {
+  const key = 'ground_v45';
+  if (GameState.texCache[key]) return GameState.texCache[key];
+  const TS = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = TS;
+  const ctx = c.getContext('2d');
+  // 底：草绿
+  ctx.fillStyle = '#4a6a3a';
+  ctx.fillRect(0, 0, TS, TS);
+  // 大色斑
+  for (let i = 0; i < 280; i++) {
+    const x = Math.random() * TS, y = Math.random() * TS;
+    const r = 20 + Math.random() * 90;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const light = Math.random() < 0.5;
+    g.addColorStop(0, light ? 'rgba(120,160,80,0.35)' : 'rgba(60,100,50,0.35)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 细噪点
+  const img = ctx.getImageData(0, 0, TS, TS);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = 4;
+  GameState.texCache[key] = tex;
+  return tex;
+}
+
+function makeBuildingTexture(kind) {
+  const key = `bld_${kind}`;
+  if (GameState.texCache[key]) return GameState.texCache[key];
+  const TS = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = TS;
+  const ctx = c.getContext('2d');
+
+  const isFactory = kind === 'factory';
+  ctx.fillStyle = isFactory ? '#5a5e64' : '#6a6e74';
+  ctx.fillRect(0, 0, TS, TS);
+  // 噪声
+  const img = ctx.getImageData(0, 0, TS, TS);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+
+  if (isFactory) {
+    // 厂房：水平窗带
+    for (let j = 0; j < 6; j++) {
+      const y = j * 42 + 8;
+      ctx.fillStyle = 'rgba(40,50,60,0.6)';
+      ctx.fillRect(10, y, TS - 20, 22);
+      ctx.fillStyle = 'rgba(150,170,190,0.35)';
+      for (let i = 0; i < 12; i++) {
+        ctx.fillRect(14 + i * 20, y + 3, 14, 16);
+      }
+    }
+  } else {
+    // 一般建筑：小方窗
+    for (let j = 0; j < 8; j++) {
+      for (let i = 0; i < 5; i++) {
+        const x = i * 50 + 10, y = j * 32 + 6;
+        ctx.fillStyle = 'rgba(40,50,60,0.65)';
+        ctx.fillRect(x, y, 36, 22);
+        ctx.fillStyle = 'rgba(150,170,190,0.3)';
+        ctx.fillRect(x + 2, y + 2, 32, 18);
+      }
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 2;
+  GameState.texCache[key] = tex;
+  return tex;
+}
+
+/* ============ 8. 固定地图生成 ============ */
+const FIXED_FEATURES = [
+  // 西北山脉群
+  { type: 'mountain', x: -110, z: -110, r: 80, height: 45 },
+  { type: 'mountain', x: -150, z: -50, r: 50, height: 28 },
+  { type: 'mountain', x: -70, z: -140, r: 55, height: 32 },
+  // 西南湖泊
+  { type: 'lake', x: -90, z: 90, r: 50, depth: 6 },
+  // 中部小湖
+  { type: 'lake', x: 40, z: 130, r: 28, depth: 4 },
+  // 工厂区（东部平原）
+  { type: 'flat', x: 110, z: -80, r: 70, height: 0.6 },
+];
+
 function buildMap() {
-  buildTerrain();
-  buildWater();
-  buildTrees();
-  buildLandmarks();
-  buildIndustrialZone();
-  buildHarbor();
-}
+  GameState.terrainFeatures = FIXED_FEATURES.map(f => ({ ...f }));
+  GameState.terrainAmp = 6;
+  GameState.occupiedBoxes = [];
+  GameState.treePositions = [];
+  GameState.tankSpots = [];
 
-function buildTerrain() {
-  const size = StoryGame.MAP_SIZE;
-  const segs = 90;
-  const geo = new THREE.PlaneGeometry(size, size, segs, segs);
+  // 地形网格
+  const size = GameState.terrainSize;
+  const geo = new THREE.PlaneGeometry(size, size, 90, 90);
   geo.rotateX(-Math.PI / 2);
-
   const pos = geo.attributes.position;
-  const colors = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const h = terrainHeight(x, z);
-    pos.setY(i, h);
-    const c = terrainColor(x, z, h);
-    colors[i * 3] = c[0];
-    colors[i * 3 + 1] = c[1];
-    colors[i * 3 + 2] = c[2];
+    pos.setY(i, terrainHeight(pos.getX(i), pos.getZ(i)));
   }
   geo.computeVertexNormals();
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.94,
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: makeGroundTexture(),
+    roughness: 0.98,
     metalness: 0.02,
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  StoryGame.scene.add(mesh);
-  StoryGame.terrain = mesh;
+  const ground = new THREE.Mesh(geo, groundMat);
+  ground.receiveShadow = true;
+  GameState.scene.add(ground);
+  GameState.groundMesh = ground;
+
+  // 水面
+  addWaterSurfaces();
+
+  // 植被 + 建筑（固定种子）
+  const rng = makeRNG(20241015);
+  buildTrees(rng);
+  buildFactories(rng);
+  buildRocks(rng);
+
+  // 预生成坦克候选点
+  buildTankSpots();
+
+  // 初始化粒子系统
+  buildParticleSystems();
 }
 
-function buildWater() {
-  // 海面（大圆盘）
-  const seaGeo = new THREE.CircleGeometry(StoryGame.MAP_HALF + 40, 48);
-  seaGeo.rotateX(-Math.PI / 2);
-  const seaMat = new THREE.MeshStandardMaterial({
-    color: 0x1e4a70, roughness: 0.25, metalness: 0.35,
-    transparent: true, opacity: 0.92,
-  });
-  const sea = new THREE.Mesh(seaGeo, seaMat);
-  sea.position.y = -0.3;
-  StoryGame.scene.add(sea);
-
-  // 湖泊 / 河流 水面
-  const pondMat = new THREE.MeshStandardMaterial({
-    color: 0x2a5a80, roughness: 0.2, metalness: 0.4,
-    transparent: true, opacity: 0.88,
-  });
-
-  // 湖泊
-  const lakeGeo = new THREE.CircleGeometry(38, 32);
-  lakeGeo.rotateX(-Math.PI / 2);
-  const lake = new THREE.Mesh(lakeGeo, pondMat);
-  lake.position.set(-20, terrainHeight(-20, -60) + 0.4, -60);
-  StoryGame.scene.add(lake);
-
-  // 河流：按路径分段
-  const riverMat = pondMat;
-  for (let i = 0; i < RIVER_PATH.length - 1; i++) {
-    const [ax, az] = RIVER_PATH[i];
-    const [bx, bz] = RIVER_PATH[i + 1];
-    const segs = 6;
-    for (let s = 0; s < segs; s++) {
-      const t0 = s / segs, t1 = (s + 1) / segs;
-      const x0 = lerp(ax, bx, t0), z0 = lerp(az, bz, t0);
-      const x1 = lerp(ax, bx, t1), z1 = lerp(az, bz, t1);
-      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-      const len = Math.hypot(x1 - x0, z1 - z0);
-      const angle = Math.atan2(x1 - x0, z1 - z0);
-      const g = new THREE.PlaneGeometry(15, len * 1.2);
-      g.rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, riverMat);
-      const y = terrainHeight(mx, mz) + 0.4;
-      m.position.set(mx, y, mz);
-      m.rotation.y = angle;
-      StoryGame.scene.add(m);
-    }
+function addWaterSurfaces() {
+  for (const f of GameState.terrainFeatures) {
+    if (f.type !== 'lake') continue;
+    const y = terrainHeight(f.x, f.z) + 0.4;
+    const geo = new THREE.CircleGeometry(f.r * 0.95, 32);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x2a5a80,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.15,
+      metalness: 0.4,
+    });
+    const water = new THREE.Mesh(geo, mat);
+    water.position.set(f.x, y, f.z);
+    water.receiveShadow = true;
+    GameState.scene.add(water);
+    GameState.objects.push(water);
   }
-
-  // 沼泽水面
-  const swampGeo = new THREE.CircleGeometry(58, 24);
-  swampGeo.rotateX(-Math.PI / 2);
-  const swampMat = new THREE.MeshStandardMaterial({
-    color: 0x2a3a2a, roughness: 0.5, metalness: 0.1,
-    transparent: true, opacity: 0.72,
-  });
-  const swamp = new THREE.Mesh(swampGeo, swampMat);
-  swamp.position.set(90, terrainHeight(90, 140) + 0.3, 140);
-  StoryGame.scene.add(swamp);
 }
 
-/* ---------- 树木（InstancedMesh，性能友好） ---------- */
-function buildTrees() {
-  const treePositions = [];
-
-  // 森林区域：出生点周围 + 湖泊周围 + 山地山脚
-  const densityZones = [
-    { cx: -75, cz: 75, r: 55, n: 240 },
-    { cx: -50, cz: 20, r: 50, n: 120 },
-    { cx: -20, cz: -60, r: 45, n: 90 },
-    { cx: 60, cz: 160, r: 45, n: 40 },   // 沼泽边
-    { cx: 150, cz: 40, r: 45, n: 60 },   // 山脚
-    { cx: -160, cz: 60, r: 40, n: 60 },
+function buildTrees(rng) {
+  // 固定森林带
+  const zones = [
+    { cx: -90, cz: 90, r: 75, n: 130 },
+    { cx: -100, cz: -90, r: 85, n: 110 },
+    { cx: 90, cz: 60, r: 80, n: 80 },
+    { cx: 0, cz: -20, r: 100, n: 60 },
+    { cx: -60, cz: 30, r: 50, n: 50 },
+    { cx: 130, cz: 100, r: 60, n: 60 },
   ];
+  const positions = [];
 
-  for (const z of densityZones) {
+  for (const z of zones) {
     for (let i = 0; i < z.n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.sqrt(Math.random()) * z.r;
+      const a = rng() * Math.PI * 2;
+      const rr = Math.sqrt(rng()) * z.r;
       const x = z.cx + Math.cos(a) * rr;
       const zz = z.cz + Math.sin(a) * rr;
+      if (Math.hypot(x, zz) > GameState.terrainSize / 2 - 8) continue;
       const h = terrainHeight(x, zz);
-      if (h < 1 || h > 40) continue;
-      // 避免水里 / 工业区
-      if (riverInfluence(x, zz) > 0.4) continue;
-      if (Math.hypot(x - 110, zz - 60) < 50) continue;
-      if (Math.hypot(x - 150, zz - 100) < 45) continue;
-      treePositions.push({ x, z: zz, y: h });
+      if (h < 0.6 || h > 42) continue;   // 水里 / 太高的山不放
+      if (isInFactoryZone(x, zz)) continue;
+      positions.push({ x, z: zz, y: h });
     }
   }
 
-  const count = treePositions.length;
+  // 边缘密林（形成视觉屏障）
+  const half = GameState.terrainSize / 2 - 15;
+  for (let i = 0; i < 90; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = half - 10 + rng() * 20;
+    const x = Math.cos(a) * r;
+    const zz = Math.sin(a) * r;
+    const h = terrainHeight(x, zz);
+    if (h < 0.6) continue;
+    positions.push({ x, z: zz, y: h });
+  }
+
+  const count = positions.length;
   if (count === 0) return;
 
-  // 树干
-  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.35, 2.5, 5);
+  // 树干（实例化）
+  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.32, 2.4, 5);
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.95 });
   const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
+  trunkMesh.castShadow = true;
+  trunkMesh.receiveShadow = true;
+  trunkMesh.raycast = () => {};   // 关键：不参与射线检测，让坦克可被点中
 
-  // 树冠
-  const leafGeo = new THREE.ConeGeometry(1.6, 3.2, 7);
+  // 树冠（实例化）
+  const leafGeo = new THREE.ConeGeometry(1.7, 3.4, 6);
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e5a2e, roughness: 0.9 });
   const leafMesh = new THREE.InstancedMesh(leafGeo, leafMat, count);
+  leafMesh.castShadow = true;
+  leafMesh.raycast = () => {};
 
   const dummy = new THREE.Object3D();
   for (let i = 0; i < count; i++) {
-    const t = treePositions[i];
-    const s = 0.8 + Math.random() * 0.7;
+    const t = positions[i];
+    const s = 0.75 + rng() * 0.75;
 
-    dummy.position.set(t.x, t.y + 1.25 * s, t.z);
+    dummy.position.set(t.x, t.y + 1.2 * s, t.z);
     dummy.scale.set(s, s, s);
-    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    dummy.rotation.set(0, rng() * Math.PI * 2, 0);
     dummy.updateMatrix();
     trunkMesh.setMatrixAt(i, dummy.matrix);
 
-    dummy.position.set(t.x, t.y + (2.5 + 1.6) * s, t.z);
+    dummy.position.set(t.x, t.y + (2.4 + 1.7) * s, t.z);
     dummy.updateMatrix();
     leafMesh.setMatrixAt(i, dummy.matrix);
+
+    GameState.treePositions.push({ x: t.x, z: t.z });
   }
   trunkMesh.instanceMatrix.needsUpdate = true;
   leafMesh.instanceMatrix.needsUpdate = true;
-  StoryGame.scene.add(trunkMesh);
-  StoryGame.scene.add(leafMesh);
-  StoryGame.trees = [trunkMesh, leafMesh];
+  GameState.scene.add(trunkMesh);
+  GameState.scene.add(leafMesh);
+  GameState.objects.push(trunkMesh, leafMesh);
 }
 
-/* ---------- 地标：瀑布 / 桥 / 山顶红旗 / 岩石 ---------- */
-function buildLandmarks() {
-  // === 出生点附近的小悬崖 + 瀑布 ===
-  const wx = -85, wz = 75;
-  const wy = terrainHeight(wx, wz);
-  // 白色水流
-  const fallMat = new THREE.MeshBasicMaterial({
-    color: 0xeaf4ff, transparent: true, opacity: 0.78,
-  });
-  const fallGeo = new THREE.PlaneGeometry(3.2, wy + 2);
-  const fall = new THREE.Mesh(fallGeo, fallMat);
-  fall.position.set(wx + 5, (wy + 2) / 2 - 0.5, wz);
-  fall.rotation.y = -Math.PI / 2;
-  StoryGame.scene.add(fall);
+function isInFactoryZone(x, z) {
+  const zone = FIXED_FEATURES.find(f => f.type === 'flat');
+  if (!zone) return false;
+  return Math.hypot(x - zone.x, z - zone.z) < zone.r;
+}
 
-  // 水花
-  const foamMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.55,
-  });
-  const foam = new THREE.Mesh(new THREE.CircleGeometry(4, 16).rotateX(-Math.PI / 2), foamMat);
-  foam.position.set(wx + 6, terrainHeight(wx + 6, wz) + 0.1, wz);
-  StoryGame.scene.add(foam);
+function buildFactories(rng) {
+  const zone = FIXED_FEATURES.find(f => f.type === 'flat');
+  if (!zone) return;
+  const tex = makeBuildingTexture('factory');
 
-  // === 桥（横跨河流，靠近出生点方向） ===
-  const bridgePos = { x: -55, z: 45 };
-  const bridgeY = terrainHeight(bridgePos.x, bridgePos.z) + 1.2;
-  const bridgeGroup = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.9 });
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(24, 0.6, 5), woodMat);
-  bridgeGroup.add(deck);
-  // 栏杆
-  for (let i = 0; i <= 6; i++) {
-    const px = -12 + i * 4;
-    const rail1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.6, 0.25), woodMat);
-    rail1.position.set(px, 1.1, 2.4);
-    bridgeGroup.add(rail1);
-    const rail2 = rail1.clone();
-    rail2.position.z = -2.4;
-    bridgeGroup.add(rail2);
+  // 4 个厂房
+  const positions = [
+    { x: zone.x - 22, z: zone.z - 20, w: 22, d: 16, h: 9 },
+    { x: zone.x + 22, z: zone.z - 20, w: 22, d: 16, h: 9 },
+    { x: zone.x - 22, z: zone.z + 20, w: 26, d: 18, h: 10 },
+    { x: zone.x + 22, z: zone.z + 20, w: 26, d: 18, h: 10 },
+  ];
+
+  for (const p of positions) {
+    const y = terrainHeight(p.x, p.z);
+
+    const t = tex.clone();
+    t.needsUpdate = true;
+    t.repeat.set(2, Math.max(1, Math.round(p.h / 4)));
+
+    const mat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, metalness: 0.18 });
+    const group = new THREE.Group();
+
+    const main = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), mat);
+    main.position.y = p.h / 2;
+    main.castShadow = true;
+    main.receiveShadow = true;
+    group.add(main);
+
+    // 锯齿屋顶
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x7a7e84, roughness: 0.72, metalness: 0.28 });
+    const teethCount = Math.max(2, Math.floor(p.w / 3));
+    const tw = p.w / teethCount;
+    for (let i = 0; i < teethCount; i++) {
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(tw * 0.9, 1.4, p.d * 0.9), roofMat);
+      tooth.position.set(-p.w / 2 + tw / 2 + i * tw, p.h + 0.7, 0);
+      tooth.castShadow = true;
+      group.add(tooth);
+    }
+
+    group.position.set(p.x, y, p.z);
+    GameState.scene.add(group);
+    GameState.objects.push(group);
+
+    GameState.occupiedBoxes.push({
+      minX: p.x - p.w / 2 - 3, maxX: p.x + p.w / 2 + 3,
+      minZ: p.z - p.d / 2 - 3, maxZ: p.z + p.d / 2 + 3,
+    });
   }
-  const topRail1 = new THREE.Mesh(new THREE.BoxGeometry(24, 0.25, 0.25), woodMat);
-  topRail1.position.set(0, 1.8, 2.4);
-  bridgeGroup.add(topRail1);
-  const topRail2 = topRail1.clone();
-  topRail2.position.z = -2.4;
-  bridgeGroup.add(topRail2);
 
-  bridgeGroup.position.set(bridgePos.x, bridgeY, bridgePos.z);
-  bridgeGroup.rotation.y = -0.5;
-  StoryGame.scene.add(bridgeGroup);
+  // 烟囱
+  const chimMat = new THREE.MeshStandardMaterial({ color: 0x8a8a90, roughness: 0.85, metalness: 0.2 });
+  for (let i = 0; i < 3; i++) {
+    const x = zone.x + (i - 1) * 30;
+    const z = zone.z - 35 + rng() * 4;
+    const y = terrainHeight(x, z);
+    const h = 22 + rng() * 8;
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, h, 10), chimMat);
+    c.position.set(x, y + h / 2, z);
+    c.castShadow = true;
+    GameState.scene.add(c);
+    GameState.objects.push(c);
 
-  // === 山顶红旗 ===
-  const summitX = -140, summitZ = -110;
-  const summitY = terrainHeight(summitX, summitZ);
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.7, roughness: 0.4 });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), poleMat);
-  pole.position.set(summitX, summitY + 3, summitZ);
-  StoryGame.scene.add(pole);
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.95, 0.95, 0.8, 10),
+      new THREE.MeshStandardMaterial({ color: 0xc04040, roughness: 0.7 })
+    );
+    band.position.set(x, y + h - 2, z);
+    GameState.scene.add(band);
+    GameState.objects.push(band);
 
-  const flagMat = new THREE.MeshStandardMaterial({ color: 0xdd3333, side: THREE.DoubleSide });
-  const flagGeo = new THREE.PlaneGeometry(2.4, 1.4);
-  const flag = new THREE.Mesh(flagGeo, flagMat);
-  flag.position.set(summitX + 1.2, summitY + 5, summitZ);
-  flag.userData.isFlag = true;
-  StoryGame.scene.add(flag);
-  StoryGame.summitFlag = flag;
+    GameState.occupiedBoxes.push({
+      minX: x - 3, maxX: x + 3, minZ: z - 3, maxZ: z + 3,
+    });
+  }
 
-  // === 岩石（散布） ===
+  // 油桶 / 集装箱
+  const clutterColors = [0x8a5a3a, 0x4a6a8a, 0x7a7a3a, 0xc0503a];
+  for (let i = 0; i < 30; i++) {
+    const x = zone.x + (rng() - 0.5) * 100;
+    const z = zone.z + (rng() - 0.5) * 100;
+    if (!isPositionFree(x, z, 3)) continue;
+    const y = terrainHeight(x, z);
+    const color = clutterColors[Math.floor(rng() * clutterColors.length)];
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
+    if (rng() < 0.5) {
+      // 集装箱
+      const w = 2 + rng() * 2, h = 1.6 + rng() * 0.6, d = 1.4 + rng() * 1;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      box.position.set(x, y + h / 2, z);
+      box.rotation.y = rng() * Math.PI * 2;
+      box.castShadow = true;
+      GameState.scene.add(box);
+      GameState.objects.push(box);
+      GameState.occupiedBoxes.push({
+        minX: x - w, maxX: x + w, minZ: z - d, maxZ: z + d,
+      });
+    } else {
+      // 油桶
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 8), mat);
+      barrel.position.set(x, y + 0.6, z);
+      barrel.castShadow = true;
+      GameState.scene.add(barrel);
+      GameState.objects.push(barrel);
+    }
+  }
+}
+
+function buildRocks(rng) {
+  const half = GameState.terrainSize / 2 - 20;
+  const count = 60;
   const rockMat = new THREE.MeshStandardMaterial({ color: 0x7a7a78, roughness: 0.95 });
-  const rockGeo = new THREE.IcosahedronGeometry(1.2, 0);
-  const rockCount = 80;
-  const rockMesh = new THREE.InstancedMesh(rockGeo, rockMat, rockCount);
+  const rockGeo = new THREE.IcosahedronGeometry(1, 0);
+  const rockMesh = new THREE.InstancedMesh(rockGeo, rockMat, count);
+  rockMesh.castShadow = true;
+  rockMesh.receiveShadow = true;
   const dummy = new THREE.Object3D();
   let placed = 0;
   let tries = 0;
-  while (placed < rockCount && tries < 500) {
+  while (placed < count && tries < 500) {
     tries++;
-    const x = rand(-200, 200);
-    const z = rand(-200, 200);
+    const x = (rng() - 0.5) * 2 * half;
+    const z = (rng() - 0.5) * 2 * half;
     const h = terrainHeight(x, z);
-    if (h < 2 || h > 50) continue;
-    if (riverInfluence(x, z) > 0.3) continue;
-    if (Math.hypot(x - 110, z - 60) < 50) continue;
-    dummy.position.set(x, h + 0.5, z);
-    const s = 0.7 + Math.random() * 1.6;
-    dummy.scale.set(s, s * 0.85, s);
-    dummy.rotation.set(Math.random(), Math.random(), Math.random());
+    if (h < 1.5 || h > 45) continue;
+    const s = 0.6 + rng() * 1.3;
+    dummy.position.set(x, h + s * 0.4, z);
+    dummy.scale.set(s, s * 0.8, s);
+    dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
     dummy.updateMatrix();
     rockMesh.setMatrixAt(placed, dummy.matrix);
+    GameState.occupiedBoxes.push({
+      minX: x - s, maxX: x + s, minZ: z - s, maxZ: z + s,
+    });
     placed++;
   }
-  while (placed < rockCount) {
+  while (placed < count) {
     dummy.position.set(0, -999, 0);
     dummy.updateMatrix();
     rockMesh.setMatrixAt(placed, dummy.matrix);
     placed++;
   }
   rockMesh.instanceMatrix.needsUpdate = true;
-  StoryGame.scene.add(rockMesh);
+  GameState.scene.add(rockMesh);
+  GameState.objects.push(rockMesh);
 }
 
-/* ---------- 工业区 ---------- */
-function buildIndustrialZone() {
-  const cx = 110, cz = 60;
-  const group = new THREE.Group();
+/* ============ 9. 坦克候选点 ============ */
+function buildTankSpots() {
+  const rng = makeRNG(77777);
+  const half = GameState.terrainSize / 2 - 30;
+  const spots = [];
 
-  // 厂房
-  const factoryCount = 4;
-  for (let i = 0; i < factoryCount; i++) {
-    const offsetX = (i % 2) * 36 - 18;
-    const offsetZ = Math.floor(i / 2) * 36 - 18;
-    const x = cx + offsetX;
-    const z = cz + offsetZ;
-    const y = terrainHeight(x, z);
-    const w = 22 + Math.random() * 6;
-    const d = 16 + Math.random() * 4;
-    const h = 8 + Math.random() * 4;
+  // 1. 优先：树林里（藏在树下）
+  for (let i = 0; i < 40; i++) {
+    const t = GameState.treePositions[Math.floor(rng() * GameState.treePositions.length)];
+    if (!t) continue;
+    const x = t.x + (rng() - 0.5) * 3;
+    const z = t.z + (rng() - 0.5) * 3;
+    if (!isPositionFree(x, z, 5)) continue;
+    spots.push({ x, z });
+  }
 
-    const mat = new THREE.MeshStandardMaterial({ color: 0x5a6068, roughness: 0.85, metalness: 0.2 });
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    b.position.set(x, y + h / 2, z);
-    group.add(b);
+  // 2. 山地缓坡
+  for (let i = 0; i < 30; i++) {
+    const x = -140 + (rng() - 0.5) * 100;
+    const z = -140 + (rng() - 0.5) * 100;
+    const h = terrainHeight(x, z);
+    if (h < 5 || h > 35) continue;
+    if (!isPositionFree(x, z, 5)) continue;
+    spots.push({ x, z });
+  }
 
-    // 锯齿屋顶
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x7a7e84, roughness: 0.7, metalness: 0.28 });
-    const toothN = 4;
-    const tw = w / toothN;
-    for (let k = 0; k < toothN; k++) {
-      const t = new THREE.Mesh(new THREE.BoxGeometry(tw * 0.9, 1.4, d * 0.9), roofMat);
-      t.position.set(x - w / 2 + tw / 2 + k * tw, y + h + 0.7, z);
-      group.add(t);
+  // 3. 湖边
+  for (let i = 0; i < 20; i++) {
+    const lake = FIXED_FEATURES.find(f => f.type === 'lake' && f.r > 40);
+    if (!lake) break;
+    const a = rng() * Math.PI * 2;
+    const r = lake.r + 8 + rng() * 25;
+    const x = lake.x + Math.cos(a) * r;
+    const z = lake.z + Math.sin(a) * r;
+    if (!isPositionFree(x, z, 5)) continue;
+    spots.push({ x, z });
+  }
+
+  // 4. 工厂区
+  const zone = FIXED_FEATURES.find(f => f.type === 'flat');
+  if (zone) {
+    for (let i = 0; i < 20; i++) {
+      const x = zone.x + (rng() - 0.5) * zone.r * 1.6;
+      const z = zone.z + (rng() - 0.5) * zone.r * 1.6;
+      if (!isPositionFree(x, z, 5)) continue;
+      spots.push({ x, z });
     }
   }
 
-  // 烟囱
-  const chimMat = new THREE.MeshStandardMaterial({ color: 0x8a8a90, roughness: 0.85, metalness: 0.2 });
-  for (let i = 0; i < 4; i++) {
-    const x = cx + (i - 1.5) * 22 + rand(-5, 5);
-    const z = cz - 30 + rand(-5, 5);
-    const y = terrainHeight(x, z);
-    const h = 20 + Math.random() * 14;
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, h, 10), chimMat);
-    c.position.set(x, y + h / 2, z);
-    group.add(c);
-    // 顶部红环
-    const band = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.85, 0.85, 0.7, 10),
-      new THREE.MeshStandardMaterial({ color: 0xc04040, roughness: 0.6 })
-    );
-    band.position.set(x, y + h - 2, z);
-    group.add(band);
+  // 5. 随机填充
+  for (let i = 0; i < 60 && spots.length < 120; i++) {
+    const x = (rng() - 0.5) * 2 * half;
+    const z = (rng() - 0.5) * 2 * half;
+    if (!isPositionFree(x, z, 5)) continue;
+    spots.push({ x, z });
   }
 
-  // 仓库（有门洞，但剧情模式中不需要坦克藏进去，做简化处理）
-  for (let i = 0; i < 2; i++) {
-    const x = cx + (i * 44) - 22;
-    const z = cz + 35;
-    const y = terrainHeight(x, z);
-    const w = 26, d = 18, h = 8;
-    const mat = new THREE.MeshStandardMaterial({ color: 0x6a6e74, roughness: 0.85, metalness: 0.2 });
-    const shell = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    shell.position.set(x, y + h / 2, z);
-    group.add(shell);
-    // 屋顶
-    const roof = new THREE.Mesh(
-      new THREE.BoxGeometry(w + 0.6, 0.6, d + 0.6),
-      new THREE.MeshStandardMaterial({ color: 0x4a4e52, roughness: 0.8 })
-    );
-    roof.position.set(x, y + h + 0.3, z);
-    group.add(roof);
-  }
-
-  StoryGame.scene.add(group);
+  GameState.tankSpots = spots;
 }
 
-/* ---------- 港口 ---------- */
-function buildHarbor() {
-  const cx = 150, cz = 100;
+function isPositionFree(x, z, radius) {
+  const half = GameState.terrainSize / 2 - 8;
+  if (Math.abs(x) > half || Math.abs(z) > half) return false;
+  for (const b of GameState.occupiedBoxes) {
+    if (x + radius > b.minX && x - radius < b.maxX &&
+        z + radius > b.minZ && z - radius < b.maxZ) return false;
+  }
+  for (const f of GameState.terrainFeatures) {
+    if (f.type === 'lake') {
+      if (Math.hypot(x - f.x, z - f.z) < f.r + radius) return false;
+    }
+  }
+  return true;
+}
+
+/* ============ 10. 精细坦克模型 ============ */
+function createTankModel() {
   const group = new THREE.Group();
+  const baseColor = 0x4a5a3a;
 
-  // 码头（混凝土）
-  const dockMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.9 });
-  const dock = new THREE.Mesh(new THREE.BoxGeometry(50, 2, 30), dockMat);
-  const dockY = terrainHeight(cx, cz);
-  dock.position.set(cx, dockY + 0.8, cz);
-  group.add(dock);
-
-  // 集装箱
-  const containerColors = [0xc0503a, 0x4a7ac0, 0x5aa050, 0xd0a030, 0x8a4aa0];
-  for (let i = 0; i < 16; i++) {
-    const x = cx + rand(-20, 20);
-    const z = cz + rand(-10, 10);
-    const y = dockY + 2;
-    const w = 6, h = 2.8, d = 2.6;
-    const color = containerColors[i % containerColors.length];
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.15 });
-    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    // 堆叠
-    const stack = Math.random() < 0.5 ? 0 : 1;
-    box.position.set(x, y + h / 2 + stack * (h + 0.1), z);
-    box.rotation.y = Math.random() < 0.5 ? 0 : Math.PI / 2;
-    group.add(box);
-  }
-
-  // 起重机（简化）
-  for (let i = 0; i < 2; i++) {
-    const x = cx - 15 + i * 30;
-    const z = cz - 20;
-    const towerMat = new THREE.MeshStandardMaterial({ color: 0xd0a030, roughness: 0.7, metalness: 0.4 });
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(2, 22, 2), towerMat);
-    tower.position.set(x, dockY + 13, z);
-    group.add(tower);
-
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(20, 0.8, 0.8), towerMat);
-    arm.position.set(x + 8, dockY + 24, z);
-    group.add(arm);
-  }
-
-  StoryGame.scene.add(group);
-}
-
-/* ============================================================
-   5. 坦克模型
-   ============================================================ */
-function createSimpleTank() {
-  const g = new THREE.Group();
-  const hullMat = new THREE.MeshStandardMaterial({ color: 0x3f5a3a, roughness: 0.8, metalness: 0.15 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2a3a28, roughness: 0.85, metalness: 0.12 });
+  const hullMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.78, metalness: 0.18 });
+  const hullDarkMat = new THREE.MeshStandardMaterial({ color: 0x2a3a28, roughness: 0.8, metalness: 0.15 });
   const trackMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95 });
-  const metalMat = new THREE.MeshStandardMaterial({ color: 0x3a3e42, roughness: 0.5, metalness: 0.75 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.85, metalness: 0.3 });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x2f3338, roughness: 0.55, metalness: 0.7 });
 
-  // 履带
-  for (const z of [-0.82, 0.82]) {
-    const t = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.7, 0.42), trackMat);
-    t.position.set(0, 0.4, z);
-    g.add(t);
-    // 负重轮
-    for (let i = 0; i < 5; i++) {
-      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.3, 8), trackMat);
+  function makeTrack() {
+    const t = new THREE.Group();
+    const beltBottom = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 0.42), trackMat);
+    beltBottom.position.y = -0.28;
+    t.add(beltBottom);
+    const beltTop = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 0.42), trackMat);
+    beltTop.position.y = 0.32;
+    t.add(beltTop);
+    const beltFront = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.42), trackMat);
+    beltFront.position.set(1.72, 0.02, 0);
+    t.add(beltFront);
+    const beltBack = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.42), trackMat);
+    beltBack.position.set(-1.72, 0.02, 0);
+    t.add(beltBack);
+    const wheelGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.34, 10);
+    for (let i = 0; i < 6; i++) {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
       w.rotation.x = Math.PI / 2;
-      w.position.set(-1.3 + i * 0.65, 0.4, z);
-      g.add(w);
+      w.position.set(-1.35 + i * 0.54, 0, 0);
+      t.add(w);
     }
+    const driveGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.36, 8);
+    const d1 = new THREE.Mesh(driveGeo, wheelMat);
+    d1.rotation.x = Math.PI / 2;
+    d1.position.set(-1.55, 0.05, 0);
+    t.add(d1);
+    const d2 = new THREE.Mesh(driveGeo, wheelMat);
+    d2.rotation.x = Math.PI / 2;
+    d2.position.set(1.55, 0.05, 0);
+    t.add(d2);
+    for (let i = 0; i < 10; i++) {
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.44), trackMat);
+      tooth.position.set(-1.6 + i * 0.36, 0.4, 0);
+      t.add(tooth);
+    }
+    return t;
   }
 
-  // 车体
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.55, 1.5), hullMat);
-  hull.position.y = 0.9;
-  g.add(hull);
+  const trackL = makeTrack();
+  trackL.position.set(0, 0.35, 0.82);
+  group.add(trackL);
+  const trackR = makeTrack();
+  trackR.position.set(0, 0.35, -0.82);
+  group.add(trackR);
 
-  const hullTop = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.35, 1.3), hullMat);
-  hullTop.position.y = 1.35;
-  g.add(hullTop);
+  const hullLower = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.5, 1.55), hullMat);
+  hullLower.position.set(0, 0.6, 0);
+  hullLower.castShadow = true;
+  group.add(hullLower);
+
+  const hullUpper = new THREE.Mesh(new THREE.BoxGeometry(2.95, 0.45, 1.35), hullMat);
+  hullUpper.position.set(0, 1.05, 0);
+  hullUpper.castShadow = true;
+  group.add(hullUpper);
+
+  const glacis = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 1.35), hullDarkMat);
+  glacis.rotation.z = -Math.PI / 4.5;
+  glacis.position.set(1.35, 0.85, 0);
+  glacis.castShadow = true;
+  group.add(glacis);
 
   // 炮塔（前置）
-  const turret = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 1.25), hullMat);
-  turret.position.set(0.35, 1.8, 0);
-  g.add(turret);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.78, 0.12, 14), hullDarkMat);
+  ring.position.set(0.35, 1.34, 0);
+  group.add(ring);
 
-  const turretFront = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 1.1), darkMat);
-  turretFront.position.set(1.05, 1.82, 0);
-  g.add(turretFront);
+  const turret = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.55, 1.3), hullMat);
+  turret.position.set(0.35, 1.65, 0);
+  turret.castShadow = true;
+  group.add(turret);
 
-  // 炮管
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.4, 8), metalMat);
+  const turretFront = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.15), hullMat);
+  turretFront.position.set(1.1, 1.68, 0);
+  turretFront.castShadow = true;
+  group.add(turretFront);
+
+  const turretTop = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.14, 1.15), hullMat);
+  turretTop.position.set(0.35, 1.99, 0);
+  turretTop.castShadow = true;
+  group.add(turretTop);
+
+  const mantlet = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.52, 0.85), hullDarkMat);
+  mantlet.position.set(1.38, 1.7, 0);
+  group.add(mantlet);
+
+  const barrelBase = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.5, 10), metalMat);
+  barrelBase.rotation.z = -Math.PI / 2;
+  barrelBase.position.set(1.7, 1.7, 0);
+  group.add(barrelBase);
+
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 2.4, 10), metalMat);
   barrel.rotation.z = -Math.PI / 2;
-  barrel.position.set(2.5, 1.8, 0);
-  g.add(barrel);
+  barrel.position.set(3.15, 1.7, 0);
+  barrel.castShadow = true;
+  group.add(barrel);
 
-  // 车长塔（第一人称视角基点）
-  const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.28, 10), hullMat);
-  cupola.position.set(-0.2, 2.25, 0.4);
-  g.add(cupola);
-  const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), darkMat);
-  hatch.position.set(-0.2, 2.4, 0.4);
-  g.add(hatch);
+  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.32, 10), metalMat);
+  muzzle.rotation.z = -Math.PI / 2;
+  muzzle.position.set(4.35, 1.7, 0);
+  group.add(muzzle);
 
-  // 天线
+  const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.24, 10), hullMat);
+  cupola.position.set(-0.25, 2.1, 0.38);
+  group.add(cupola);
+
+  const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 10), hullDarkMat);
+  hatch.position.set(-0.25, 2.24, 0.38);
+  group.add(hatch);
+
   const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.4, 4), metalMat);
-  antenna.position.set(-0.7, 2.8, -0.4);
-  g.add(antenna);
+  antenna.position.set(-0.65, 2.7, -0.4);
+  group.add(antenna);
 
-  return g;
+  // 标记坦克根节点
+  group.userData.isTank = true;
+  group.traverse(c => { c.userData.tankRoot = group; });
+
+  return group;
 }
 
-function buildPlayerTank() {
-  const t = createSimpleTank();
-  t.position.set(StoryGame.px, terrainHeight(StoryGame.px, StoryGame.pz), StoryGame.pz);
-  StoryGame.scene.add(t);
-  StoryGame.playerTank = t;
+/* ============ 11. 藏匿坦克 ============ */
+function spawnTank() {
+  if (!GameState.scene) return;
+  if (GameState.tankSpots.length === 0) return;
+
+  // 找一个未用过的点
+  let spot = null;
+  for (let i = 0; i < 60; i++) {
+    const s = GameState.tankSpots[Math.floor(Math.random() * GameState.tankSpots.length)];
+    const key = `${Math.round(s.x)},${Math.round(s.z)}`;
+    if (GameState.usedSpots.has(key)) continue;
+    spot = s;
+    GameState.usedSpots.add(key);
+    break;
+  }
+  // 全用过了：清空再用
+  if (!spot) {
+    GameState.usedSpots.clear();
+    spot = GameState.tankSpots[Math.floor(Math.random() * GameState.tankSpots.length)];
+  }
+
+  const tank = createTankModel();
+  const y = terrainHeight(spot.x, spot.z);
+  tank.position.set(spot.x, y, spot.z);
+  tank.rotation.y = Math.random() * Math.PI * 2;
+
+  GameState.scene.add(tank);
+  GameState.objects.push(tank);
+  GameState.targetTank = tank;
 }
 
-function buildNpcTank() {
-  const t = createSimpleTank();
-  // 换个颜色好识别（金色）
-  t.traverse(c => {
-    if (c.material && c.material.color) {
-      const col = c.material.color.getHex();
-      if (col === 0x3f5a3a) c.material = c.material.clone(), c.material.color.setHex(0x8a7a3a);
-      else if (col === 0x2a3a28) c.material = c.material.clone(), c.material.color.setHex(0x6a5a2a);
+/* ============ 12. 天气系统（渐变） ============ */
+const WEATHER_PRESETS = {
+  summer: {
+    bg: 0x8fc8f0, fog: 0xb8d8ee,
+    fogNear: 150, fogFar: 480,
+    hemi: 0.7, ambient: 0.35,
+    dir: 1.0, dirColor: 0xfff3e0,
+    rain: 0, snow: 0,
+  },
+  rain: {
+    bg: 0x39404d, fog: 0x4a5260,
+    fogNear: 80, fogFar: 260,
+    hemi: 0.45, ambient: 0.32,
+    dir: 0.42, dirColor: 0xbcc6d4,
+    rain: 0.55, snow: 0,
+  },
+  snow: {
+    bg: 0xc8d8e8, fog: 0xd0dce8,
+    fogNear: 100, fogFar: 320,
+    hemi: 0.6, ambient: 0.4,
+    dir: 0.55, dirColor: 0xecf2ff,
+    rain: 0, snow: 1,
+  },
+};
+
+const WEATHER_CYCLE = ['summer', 'rain', 'snow'];
+
+function resetWeather() {
+  const w = GameState.weather;
+  w.current = 'summer';
+  w.target = 'summer';
+  w.holdTimer = 25;
+  w.transitionT = 1;
+  // 立即将参数设置为夏天
+  const p = WEATHER_PRESETS.summer;
+  w.params.bg.setHex(p.bg);
+  w.params.fog.setHex(p.fog);
+  w.params.fogNear = p.fogNear;
+  w.params.fogFar = p.fogFar;
+  w.params.hemi = p.hemi;
+  w.params.ambient = p.ambient;
+  w.params.dir = p.dir;
+  w.params.dirColor.setHex(p.dirColor);
+  w.params.rain = p.rain;
+  w.params.snow = p.snow;
+  if (GameState.scene) {
+    GameState.scene.background = w.params.bg.clone();
+    if (GameState.scene.fog) {
+      GameState.scene.fog.color.copy(w.params.fog);
+      GameState.scene.fog.near = w.params.fogNear;
+      GameState.scene.fog.far = w.params.fogFar;
     }
-  });
-  const np = StoryGame.npcPos;
-  t.position.set(np.x, terrainHeight(np.x, np.z), np.z);
-  t.rotation.y = Math.PI * 0.3;
-  StoryGame.scene.add(t);
-  StoryGame.npcTank = t;
-
-  // 头顶黄色感叹号
-  const sprite = makeMarkerSprite('!', '#ffd83a');
-  sprite.position.set(np.x, terrainHeight(np.x, np.z) + 5, np.z);
-  sprite.scale.set(2.2, 4.4, 1);
-  StoryGame.scene.add(sprite);
-  StoryGame.npcMarker = sprite;
-}
-
-/* ---------- 目标坦克（散布地图） ---------- */
-function buildTargetTanks() {
-  // 固定位置（分布在各个地形特征附近）
-  const spots = [
-    // 森林深处
-    { x: -30, z: 100, area: 'forest' },
-    { x: -100, z: 30, area: 'forest' },
-    // 河边
-    { x: 10, z: -10, area: 'river' },
-    { x: 60, z: -30, area: 'river' },
-    // 山地
-    { x: -180, z: -90, area: 'mountain' },
-    { x: -120, z: -150, area: 'mountain' },
-    // 平原
-    { x: 30, z: 40, area: 'plain' },
-    { x: -40, z: -60, area: 'plain' },
-    { x: 60, z: 30, area: 'plain' },
-    // 工业
-    { x: 110, z: 60, area: 'industrial' },
-    { x: 130, z: 40, area: 'industrial' },
-    // 港口
-    { x: 150, z: 100, area: 'harbor' },
-    // 沼泽
-    { x: 90, z: 140, area: 'swamp' },
-    { x: 120, z: 155, area: 'swamp' },
-    // 湖泊边
-    { x: -20, z: -25, area: 'lake' },
-    // 沿海
-    { x: 180, z: -60, area: 'coast' },
-  ];
-
-  StoryGame.targetTanks = [];
-  for (let i = 0; i < spots.length; i++) {
-    const s = spots[i];
-    const t = createSimpleTank();
-    // 目标坦克颜色随区域变化
-    let col = 0x4a5a3a;
-    if (s.area === 'industrial' || s.area === 'harbor') col = 0x4a4a50;
-    if (s.area === 'mountain') col = 0x6a6a5a;
-    if (s.area === 'swamp') col = 0x3a4a2a;
-    t.traverse(c => {
-      if (c.material && c.material.color && c.material.color.getHex() === 0x3f5a3a) {
-        c.material = c.material.clone();
-        c.material.color.setHex(col);
-      }
-    });
-
-    const y = terrainHeight(s.x, s.z);
-    t.position.set(s.x, y, s.z);
-    t.rotation.y = Math.random() * Math.PI * 2;
-    StoryGame.scene.add(t);
-
-    StoryGame.targetTanks.push({
-      id: i,
-      tank: t,
-      x: s.x, z: s.z,
-      phase: 'idle',  // idle | alert | escape | gone
-      t: 0,
-      sprite: null,
-      dir: new THREE.Vector3(),
-    });
   }
-  StoryGame.totalTargets = spots.length;
+  updateWeatherInfoUI();
 }
 
-function makeMarkerSprite(char, color) {
+function updateWeather(dt) {
+  const w = GameState.weather;
+  if (!GameState.scene) return;
+
+  // 停留在当前天气
+  if (w.transitionT >= 1) {
+    w.holdTimer -= dt;
+    if (w.holdTimer <= 0) {
+      // 选下一个天气
+      const idx = WEATHER_CYCLE.indexOf(w.target);
+      w.current = w.target;
+      w.target = WEATHER_CYCLE[(idx + 1) % WEATHER_CYCLE.length];
+      w.transitionT = 0;
+      w.holdTimer = 25 + Math.random() * 10;
+      updateWeatherInfoUI();
+    }
+    return;
+  }
+
+  // 渐变过渡
+  w.transitionT = Math.min(1, w.transitionT + dt / w.transitionDur);
+  const t = smoothstep(w.transitionT);
+  const from = WEATHER_PRESETS[w.current];
+  const to = WEATHER_PRESETS[w.target];
+  const p = w.params;
+
+  p.bg.setHex(from.bg).lerp(new THREE.Color(to.bg), t);
+  p.fog.setHex(from.fog).lerp(new THREE.Color(to.fog), t);
+  p.fogNear = from.fogNear + (to.fogNear - from.fogNear) * t;
+  p.fogFar = from.fogFar + (to.fogFar - from.fogFar) * t;
+  p.hemi = from.hemi + (to.hemi - from.hemi) * t;
+  p.ambient = from.ambient + (to.ambient - from.ambient) * t;
+  p.dir = from.dir + (to.dir - from.dir) * t;
+  p.dirColor.setHex(from.dirColor).lerp(new THREE.Color(to.dirColor), t);
+  p.rain = from.rain + (to.rain - from.rain) * t;
+  p.snow = from.snow + (to.snow - from.snow) * t;
+
+  applyWeatherParams();
+}
+
+function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+function applyWeatherParams() {
+  const p = GameState.weather.params;
+  const s = GameState.scene;
+  if (!s) return;
+  if (!s.background) s.background = new THREE.Color();
+  s.background.copy(p.bg);
+  if (s.fog) {
+    s.fog.color.copy(p.fog);
+    s.fog.near = p.fogNear;
+    s.fog.far = p.fogFar;
+  }
+  if (GameState.hemiLight) GameState.hemiLight.intensity = p.hemi;
+  if (GameState.ambientLight) GameState.ambientLight.intensity = p.ambient;
+  if (GameState.dirLight) {
+    GameState.dirLight.intensity = p.dir;
+    GameState.dirLight.color.copy(p.dirColor);
+  }
+  if (GameState.rainParticles) {
+    GameState.rainParticles.material.opacity = 0.7 * p.rain;
+    GameState.rainParticles.visible = p.rain > 0.01;
+  }
+  if (GameState.snowParticles) {
+    GameState.snowParticles.material.opacity = 0.95 * p.snow;
+    GameState.snowParticles.visible = p.snow > 0.01;
+  }
+}
+
+function updateWeatherInfoUI() {
+  const el = document.getElementById('ftg-weather-info');
+  if (!el) return;
+  const names = { summer: '☀ 夏日', rain: '🌧 阴雨', snow: '❄ 飘雪' };
+  el.textContent = names[GameState.weather.target] || '';
+}
+
+/* ============ 13. 粒子 ============ */
+function makeSnowTexture() {
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 256;
+  c.width = c.height = 32;
   const ctx = c.getContext('2d');
-  ctx.font = 'bold 220px -apple-system, "PingFang SC", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 14;
-  ctx.strokeStyle = '#1a1208';
-  ctx.strokeText(char, 64, 128);
-  ctx.fillStyle = color;
-  ctx.fillText(char, 64, 128);
-  const tex = new THREE.CanvasTexture(c);
-  const mat = new THREE.SpriteMaterial({
-    map: tex, depthTest: false, depthWrite: false, transparent: true,
-  });
-  const sprite = new THREE.Sprite(mat);
-  sprite.renderOrder = 999;
-  return sprite;
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.4, 'rgba(255,255,255,0.7)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(c);
+}
+function makeRainTexture() {
+  const c = document.createElement('canvas');
+  c.width = 8;
+  c.height = 32;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 32);
+  g.addColorStop(0, 'rgba(200,220,255,0)');
+  g.addColorStop(0.5, 'rgba(200,220,255,0.85)');
+  g.addColorStop(1, 'rgba(200,220,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(2, 0, 4, 32);
+  return new THREE.CanvasTexture(c);
 }
 
-/* ============================================================
-   6. 玩家移动 / 相机
-   ============================================================ */
-function updatePlayerControls(dt) {
-  if (StoryGame.dialogOpen) {
-    StoryGame.playerSpeed *= 0.85;
-    return;
+function buildParticleSystems() {
+  const areaSize = GameState.terrainSize * 0.9;
+  const topY = 120;
+
+  // 雨
+  {
+    const count = 6000;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * areaSize;
+      pos[i * 3 + 1] = Math.random() * topY;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * areaSize;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 1.2, map: makeRainTexture(),
+      transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.raycast = () => {};
+    pts.visible = false;
+    GameState.scene.add(pts);
+    GameState.rainParticles = pts;
   }
 
-  const k = StoryGame.keys;
-  let accel = 0;
-  let turn = 0;
-  if (k.up) accel += 1;
-  if (k.down) accel -= 1;
-  if (k.left) turn += 1;
-  if (k.right) turn -= 1;
-
-  // 速度
-  if (accel !== 0) {
-    StoryGame.playerSpeed += accel * 18 * dt;
-  } else {
-    StoryGame.playerSpeed *= 0.92;
-    if (Math.abs(StoryGame.playerSpeed) < 0.05) StoryGame.playerSpeed = 0;
-  }
-  StoryGame.playerSpeed = clamp(StoryGame.playerSpeed, StoryGame.minSpeed, StoryGame.maxSpeed);
-
-  // 转向
-  StoryGame.ph += turn * 1.8 * dt;
-
-  // 位置
-  const nx = StoryGame.px + Math.sin(StoryGame.ph) * StoryGame.playerSpeed * dt;
-  const nz = StoryGame.pz + Math.cos(StoryGame.ph) * StoryGame.playerSpeed * dt;
-
-  // 地形限制：不能进水
-  const nh = terrainHeight(nx, nz);
-  if (nh > 0.2) {
-    StoryGame.px = nx;
-    StoryGame.pz = nz;
-  } else {
-    StoryGame.playerSpeed *= 0.4;
-  }
-
-  // 边界（不能出地图）
-  const maxR = StoryGame.MAP_HALF - 15;
-  const r = Math.hypot(StoryGame.px, StoryGame.pz);
-  if (r > maxR) {
-    const scale = maxR / r;
-    StoryGame.px *= scale;
-    StoryGame.pz *= scale;
-  }
-
-  // 更新坦克对象
-  const py = terrainHeight(StoryGame.px, StoryGame.pz);
-  StoryGame.playerTank.position.set(StoryGame.px, py, StoryGame.pz);
-  StoryGame.playerTank.rotation.y = StoryGame.ph;
-
-  // 车长塔世界坐标（用于相机）
-  const cq = 0.4;
-  const cupolaLocalX = -0.2;
-  const cqx = StoryGame.px + Math.cos(StoryGame.ph) * cupolaLocalX + Math.sin(StoryGame.ph) * cq;
-  const cqz = StoryGame.pz - Math.sin(StoryGame.ph) * cupolaLocalX + Math.cos(StoryGame.ph) * cq;
-  StoryGame.cupolaX = cqx;
-  StoryGame.cupolaY = py + 2.3;
-  StoryGame.cupolaZ = cqz;
-}
-
-function updateCamera() {
-  if (StoryGame.phase === 'menu') {
-    // 菜单：环绕地图的第三人称相机
-    StoryGame.menuAngle += 0.002;
-    const r = 220;
-    const cx = -75 + Math.cos(StoryGame.menuAngle) * r * 0.3;
-    const cz = 75 + Math.sin(StoryGame.menuAngle) * r * 0.3;
-    StoryGame.camera.position.set(cx, 90, cz + 60);
-    StoryGame.camera.lookAt(-75, 0, 75);
-    return;
-  }
-  if (StoryGame.phase === 'playing' || StoryGame.phase === 'dialog') {
-    const totalYaw = StoryGame.ph + StoryGame.camYaw;
-    const pitch = StoryGame.camPitch;
-    const cx = StoryGame.cupolaX || StoryGame.px;
-    const cy = StoryGame.cupolaY || (terrainHeight(StoryGame.px, StoryGame.pz) + 2.3);
-    const cz = StoryGame.cupolaZ || StoryGame.pz;
-    StoryGame.camera.position.set(cx, cy, cz);
-
-    const lookDist = 50;
-    const dx = Math.sin(totalYaw) * Math.cos(pitch) * lookDist;
-    const dy = Math.sin(pitch) * lookDist;
-    const dz = Math.cos(totalYaw) * Math.cos(pitch) * lookDist;
-    StoryGame.camera.lookAt(cx + dx, cy + dy, cz + dz);
+  // 雪
+  {
+    const count = 3000;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * areaSize;
+      pos[i * 3 + 1] = Math.random() * topY;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * areaSize;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 1.4, map: makeSnowTexture(),
+      transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.raycast = () => {};
+    pts.visible = false;
+    GameState.scene.add(pts);
+    GameState.snowParticles = pts;
   }
 }
 
-/* ============================================================
-   7. 点击处理（找坦克 / 交互）
-   ============================================================ */
+function updateParticles(dt) {
+  const w = GameState.weather.params;
+  const areaSize = GameState.terrainSize * 0.9;
+  const topY = 120;
+
+  if (GameState.rainParticles && w.rain > 0.01) {
+    const arr = GameState.rainParticles.geometry.attributes.position.array;
+    const count = arr.length / 3;
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      arr[i3 + 1] -= 85 * dt;
+      arr[i3] += 3 * dt;
+      if (arr[i3 + 1] < 0) {
+        arr[i3 + 1] = topY;
+        arr[i3] = (Math.random() - 0.5) * areaSize;
+        arr[i3 + 2] = (Math.random() - 0.5) * areaSize;
+      }
+    }
+    GameState.rainParticles.geometry.attributes.position.needsUpdate = true;
+  }
+  if (GameState.snowParticles && w.snow > 0.01) {
+    const arr = GameState.snowParticles.geometry.attributes.position.array;
+    const count = arr.length / 3;
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      arr[i3 + 1] -= 6 * dt;
+      arr[i3] += Math.sin((arr[i3 + 1] + i) * 0.35) * 1.2 * dt;
+      if (arr[i3 + 1] < 0) {
+        arr[i3 + 1] = topY;
+        arr[i3] = (Math.random() - 0.5) * areaSize;
+        arr[i3 + 2] = (Math.random() - 0.5) * areaSize;
+      }
+    }
+    GameState.snowParticles.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+/* ============ 14. 点击处理 ============ */
 function handleCanvasClick(clientX, clientY) {
-  if (StoryGame.phase !== 'playing') return;
-  if (StoryGame.dialogOpen) return;
+  if (GameState.phase !== 'playing') return;
+  if (GameState.locked) return;
+  if (!GameState.targetTank) return;
 
-  const rect = StoryGame.renderer.domElement.getBoundingClientRect();
+  const rect = GameState.renderer.domElement.getBoundingClientRect();
   const x = ((clientX - rect.left) / rect.width) * 2 - 1;
   const y = -((clientY - rect.top) / rect.height) * 2 + 1;
-  StoryGame.pointer.set(x, y);
-  StoryGame.raycaster.setFromCamera(StoryGame.pointer, StoryGame.camera);
+  GameState.pointer.set(x, y);
+  GameState.raycaster.setFromCamera(GameState.pointer, GameState.camera);
 
-  // 先看 NPC
-  if (StoryGame.npcTank) {
-    const npcMeshes = [];
-    StoryGame.npcTank.traverse(c => { if (c.isMesh) npcMeshes.push(c); });
-    const hits = StoryGame.raycaster.intersectObjects(npcMeshes, false);
-    if (hits.length > 0) {
-      const dist = Math.hypot(StoryGame.px - StoryGame.npcPos.x, StoryGame.pz - StoryGame.npcPos.z);
-      if (dist < StoryGame.npcRadius * 2) {
-        showNpcDialog();
-      } else {
-        showHint('距离太远，靠近指挥官再交互');
-      }
-      return;
-    }
-  }
+  // 收集目标坦克的所有 mesh
+  const tankMeshes = [];
+  GameState.targetTank.traverse(o => { if (o.isMesh) tankMeshes.push(o); });
 
-  // 再看目标坦克
-  for (const tt of StoryGame.targetTanks) {
-    if (tt.phase !== 'idle') continue;
-    const meshes = [];
-    tt.tank.traverse(c => { if (c.isMesh) meshes.push(c); });
-    const hits = StoryGame.raycaster.intersectObjects(meshes, false);
-    if (hits.length > 0) {
-      const dist = Math.hypot(StoryGame.px - tt.x, StoryGame.pz - tt.z);
-      if (dist > 90) {
-        showHint('目标太远，靠近一点再攻击');
-        return;
-      }
-      tryCaptureTank(tt);
-      return;
+  // 射线检测
+  const tankHits = GameState.raycaster.intersectObjects(tankMeshes, false);
+  if (tankHits.length === 0) return;
+
+  // 检查是否有障碍物在坦克前面
+  const allHits = GameState.raycaster.intersectObjects(GameState.scene.children, true);
+  for (const hit of allHits) {
+    const obj = hit.object;
+    if (obj.raycast === undefined) continue;
+    // 树、粒子、地面不阻挡
+    if (obj.isPoints || obj.isSprite) continue;
+    if (obj === GameState.groundMesh) continue;
+    // 检查是否为坦克子物体
+    let n = obj;
+    let isTank = false;
+    while (n) {
+      if (n === GameState.targetTank) { isTank = true; break; }
+      n = n.parent;
     }
+    if (isTank) triggerWin();
+    return;
   }
 }
 
-/* ============================================================
-   8. 捕获 / 积分 / 导弹
-   ============================================================ */
-function tryCaptureTank(tt) {
-  if (StoryGame.missiles <= 0) {
-    showHint('❌ 没有导弹了！回到指挥官处用积分兑换');
-    return;
-  }
-  StoryGame.missiles--;
-  StoryGame.score += 100;
-  StoryGame.capturedCount++;
-  StoryGame.capturedIds.add(tt.id);
+/* ============ 15. 胜利 + 自动刷新 ============ */
+function triggerWin() {
+  if (GameState.locked) return;
+  GameState.locked = true;
+
+  GameState.foundCount++;
   updateHUD();
 
-  // 标记被找到
-  tt.phase = 'alert';
-  tt.t = 0;
+  if (typeof playSound === 'function') playSound('fav');
 
-  const sprite = makeMarkerSprite('!', '#ff4444');
-  const p = tt.tank.position.clone();
-  sprite.position.set(p.x, p.y + 6, p.z);
-  sprite.scale.set(2.2, 4.4, 1);
-  StoryGame.scene.add(sprite);
-  tt.sprite = sprite;
+  // "!" 标记
+  const sprite = makeExclamationSprite();
+  const tankPos = GameState.targetTank.position.clone();
+  sprite.position.set(tankPos.x, tankPos.y + 7, tankPos.z);
+  GameState.scene.add(sprite);
+  GameState.winSprite = sprite;
 
-  // 逃跑方向
-  const half = StoryGame.MAP_HALF;
+  // 计算逃跑方向
+  const half = GameState.terrainSize / 2;
+  const p = GameState.targetTank.position;
   const distToEdge = {
     px: half - p.x, nx: half + p.x, pz: half - p.z, nz: half + p.z,
   };
@@ -1205,299 +1381,432 @@ function tryCaptureTank(tt) {
   else if (minKey === 'nx') dirX = -1;
   else if (minKey === 'pz') dirZ = 1;
   else dirZ = -1;
-  tt.dir.set(dirX, 0, dirZ).normalize();
 
-  if (typeof playSound === 'function') playSound('fav');
-  showHint(`✅ 击毁目标 +100 积分  (剩余导弹 ${StoryGame.missiles})`);
+  GameState.winState = {
+    phase: 'alert',
+    t: 0,
+    sprite,
+    tank: GameState.targetTank,
+    dir: new THREE.Vector3(dirX, 0, dirZ).normalize(),
+    baseY: tankPos.y,
+    missile: null,
+    missileVel: null,
+    missileActive: false,
+  };
 }
 
-function updateTargetTanks(dt) {
-  for (const tt of StoryGame.targetTanks) {
-    if (tt.phase === 'idle') {
-      // 轻微摆动
-      tt.tank.rotation.y += Math.sin(performance.now() * 0.001 + tt.id) * 0.004;
-      continue;
-    }
-    if (tt.phase === 'gone') continue;
-
-    tt.t += dt;
-
-    if (tt.phase === 'alert') {
-      if (tt.sprite) {
-        const pulse = 1 + Math.sin(tt.t * 10) * 0.15;
-        tt.sprite.scale.set(2.2 * pulse, 4.4 * pulse, 1);
-        tt.sprite.position.y = tt.tank.position.y + 6 + Math.sin(tt.t * 6) * 0.4;
-      }
-      if (tt.t > 0.7) {
-        tt.phase = 'escape';
-        tt.t = 0;
-      }
-    } else if (tt.phase === 'escape') {
-      const SPEED = 28;
-      tt.tank.position.x += tt.dir.x * SPEED * dt;
-      tt.tank.position.z += tt.dir.z * SPEED * dt;
-      tt.tank.position.y = terrainHeight(tt.tank.position.x, tt.tank.position.z);
-
-      const targetRot = Math.atan2(tt.dir.x, tt.dir.z);
-      let diff = targetRot - tt.tank.rotation.y;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      tt.tank.rotation.y += diff * Math.min(1, dt * 5);
-
-      if (tt.sprite) {
-        tt.sprite.position.x = tt.tank.position.x;
-        tt.sprite.position.y = tt.tank.position.y + 6;
-        tt.sprite.position.z = tt.tank.position.z;
-      }
-
-      if (Math.hypot(tt.tank.position.x, tt.tank.position.z) > StoryGame.MAP_HALF + 20) {
-        tt.phase = 'gone';
-        tt.tank.visible = false;
-        if (tt.sprite) {
-          StoryGame.scene.remove(tt.sprite);
-          tt.sprite = null;
-        }
-      }
-    }
-  }
+function makeExclamationSprite() {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 220px -apple-system, "PingFang SC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = '#1a1208';
+  ctx.strokeText('!', 64, 128);
+  ctx.fillStyle = '#ffd83a';
+  ctx.fillText('!', 64, 128);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(4, 8, 1);
+  sprite.renderOrder = 999;
+  return sprite;
 }
 
-function updateHUD() {
-  const p = StoryGame.panel;
-  if (!p) return;
-  p.querySelector('#story-score').textContent = StoryGame.score;
-  p.querySelector('#story-missiles').textContent = StoryGame.missiles;
-}
-
-/* ============================================================
-   9. 对话框
-   ============================================================ */
-function showIntroDialog() {
-  showDialog(
-    '指挥官：\n「你好，士兵。我们派出的装甲部队在地图上失踪了。\n现在我给你 2 枚导弹和这个坐标——找到它们，用导弹标记位置。\n如果导弹用完了，回来找我，用积分兑换新的。」',
-    [
-      { label: '明白了', action: closeDialog },
-    ]
+/* ============ 16. 导弹 ============ */
+function createMissileModel() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a8a92, roughness: 0.5, metalness: 0.6 })
   );
-}
-
-function showNpcDialog() {
-  const canExchange = StoryGame.score >= 100;
-  const opts = [];
-  if (canExchange) {
-    opts.push({
-      label: `兑换 1 枚导弹 (-100 积分)`,
-      action: () => {
-        StoryGame.score -= 100;
-        StoryGame.missiles += 1;
-        updateHUD();
-        showHint('✅ 兑换成功 +1 枚导弹');
-        closeDialog();
-      },
-    });
-  } else {
-    opts.push({
-      label: '积分不足（需要 100）',
-      action: () => { showHint('还需要 ' + (100 - StoryGame.score) + ' 积分'); },
-      disabled: true,
-    });
-  }
-  opts.push({ label: '关闭', action: closeDialog });
-
-  showDialog(
-    `指挥官：\n「现在你有 ${StoryGame.score} 积分、${StoryGame.missiles} 枚导弹。\n找到的坦克总数：${StoryGame.capturedCount} / ${StoryGame.totalTargets}。」`,
-    opts
+  body.rotation.z = -Math.PI / 2;
+  g.add(body);
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.7, 10),
+    new THREE.MeshStandardMaterial({ color: 0xcc4444, roughness: 0.4, metalness: 0.5 })
   );
-}
-
-function showDialog(text, options) {
-  StoryGame.dialogOpen = true;
-  const p = StoryGame.panel;
-  p.querySelector('#story-dialog-text').textContent = text;
-  const optEl = p.querySelector('#story-dialog-options');
-  optEl.innerHTML = '';
-  for (const o of options) {
-    const btn = document.createElement('button');
-    btn.textContent = o.label;
-    btn.style.cssText = 'padding:10px 20px;border-radius:999px;border:1px solid rgba(255,216,58,0.45);background:rgba(255,216,58,0.1);color:#ffd83a;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;' + (o.disabled ? 'opacity:0.45;' : '');
-    if (!o.disabled) btn.addEventListener('click', o.action);
-    optEl.appendChild(btn);
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.x = 1.65;
+  g.add(nose);
+  const finMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.6, metalness: 0.4 });
+  for (let i = 0; i < 3; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.06), finMat);
+    fin.position.x = -1.1;
+    fin.position.y = Math.cos((i / 3) * Math.PI * 2) * 0.22;
+    fin.position.z = Math.sin((i / 3) * Math.PI * 2) * 0.22;
+    fin.rotation.y = (i / 3) * Math.PI * 2;
+    g.add(fin);
   }
-  p.querySelector('#story-dialog').style.display = 'block';
+  const flame = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffaa33, transparent: true, opacity: 0.95,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  flame.position.x = -1.55;
+  flame.name = 'flame';
+  g.add(flame);
+  const flameInner = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffcc, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  flameInner.position.x = -1.5;
+  flameInner.name = 'flameInner';
+  g.add(flameInner);
+  return g;
 }
 
-function closeDialog() {
-  StoryGame.dialogOpen = false;
-  StoryGame.panel.querySelector('#story-dialog').style.display = 'none';
+function spawnMissile() {
+  const w = GameState.winState;
+  if (!w) return;
+  const tankPos = w.tank.position.clone();
+  const camPos = GameState.camera.position.clone();
+  const awayDir = camPos.clone().sub(tankPos).normalize();
+  const spawnPos = camPos.clone().add(awayDir.multiplyScalar(150));
+  spawnPos.y += 45;
+  spawnPos.x += (Math.random() - 0.5) * 60;
+  spawnPos.z += (Math.random() - 0.5) * 60;
+
+  const missile = createMissileModel();
+  missile.position.copy(spawnPos);
+  const toTank = tankPos.clone().sub(spawnPos).normalize();
+  missile.rotation.y = Math.atan2(-toTank.z, toTank.x);
+  GameState.scene.add(missile);
+
+  const SPEED = 220;
+  const vel = toTank.multiplyScalar(SPEED);
+  w.missile = missile;
+  w.missileVel = vel;
+  w.missileActive = true;
+
+  setupMissileTrail();
+  if (typeof playSound === 'function') playSound('open');
 }
 
-let __hintTimer = null;
-function showHint(text) {
-  const el = StoryGame.panel.querySelector('#story-hint');
-  el.textContent = text;
-  el.style.opacity = '1';
-  clearTimeout(__hintTimer);
-  __hintTimer = setTimeout(() => { el.style.opacity = '0'; }, 2200);
-}
-
-/* ============================================================
-   10. 小地图
-   ============================================================ */
-function buildMinimapBg() {
-  const W = 160, H = 160;
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const half = StoryGame.MAP_HALF;
-  const step = 3;
-  for (let py = 0; py < H; py += step) {
-    for (let px = 0; px < W; px += step) {
-      const wx = (px / W) * half * 2 - half;
-      const wz = (py / H) * half * 2 - half;
-      const h = terrainHeight(wx, wz);
-      const [r, g, b] = terrainColor(wx, wz, h);
-      ctx.fillStyle = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
-      ctx.fillRect(px, py, step, step);
-    }
+const MISSILE_TRAIL_MAX = 80;
+function setupMissileTrail() {
+  if (GameState.missileTrail) {
+    GameState.scene.remove(GameState.missileTrail);
+    GameState.missileTrail.geometry.dispose();
+    GameState.missileTrail.material.dispose();
   }
-  StoryGame.minimapBg = canvas;
-}
-
-function drawMinimap() {
-  const ctx = StoryGame.minimapCtx;
-  const W = StoryGame.minimapCanvas.width;
-  const H = StoryGame.minimapCanvas.height;
-  const half = StoryGame.MAP_HALF;
-
-  ctx.clearRect(0, 0, W, H);
-  if (StoryGame.minimapBg) ctx.drawImage(StoryGame.minimapBg, 0, 0, W, H);
-
-  const toMap = (wx, wz) => ({
-    x: (wx + half) / (half * 2) * W,
-    y: (wz + half) / (half * 2) * H,
+  const positions = new Float32Array(MISSILE_TRAIL_MAX * 3);
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) positions[i * 3 + 1] = -9999;
+  const colors = new Float32Array(MISSILE_TRAIL_MAX * 3);
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) {
+    const t = i / MISSILE_TRAIL_MAX;
+    colors[i * 3] = Math.max(0, 1.0 - t * 0.6);
+    colors[i * 3 + 1] = Math.max(0, 0.85 - t * 0.75);
+    colors[i * 3 + 2] = Math.max(0, 0.35 - t * 0.3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 2.4, vertexColors: true, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
   });
-
-  // 已找到的目标坦克（小灰点）
-  for (const tt of StoryGame.targetTanks) {
-    if (tt.phase === 'gone') {
-      const p = toMap(tt.x, tt.z);
-      ctx.fillStyle = 'rgba(150,150,150,0.6)';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // NPC
-  if (StoryGame.npcTank) {
-    const p = toMap(StoryGame.npcPos.x, StoryGame.npcPos.z);
-    ctx.fillStyle = '#ffd83a';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,216,58,0.4)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // 玩家
-  const pp = toMap(StoryGame.px, StoryGame.pz);
-  ctx.save();
-  ctx.translate(pp.x, pp.y);
-  ctx.rotate(StoryGame.ph + Math.PI);
-  ctx.fillStyle = '#4aff4a';
-  ctx.beginPath();
-  ctx.moveTo(0, -7);
-  ctx.lineTo(-5, 5);
-  ctx.lineTo(0, 3);
-  ctx.lineTo(5, 5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  const pts = new THREE.Points(geo, mat);
+  pts.raycast = () => {};
+  pts.frustumCulled = false;
+  GameState.scene.add(pts);
+  GameState.missileTrail = pts;
+  GameState.missileTrailHistory = [];
 }
 
-/* ============================================================
-   11. 主循环
-   ============================================================ */
-function startLoop() {
-  if (StoryGame.animId) return;
-  if (!StoryGame.clock) StoryGame.clock = new THREE.Clock();
-  StoryGame.clock.getDelta();
+function updateMissileTrail() {
+  const trail = GameState.missileTrail;
+  const w = GameState.winState;
+  if (!trail || !w || !w.missile) return;
+  const hist = GameState.missileTrailHistory;
+  hist.unshift(w.missile.position.clone());
+  if (hist.length > MISSILE_TRAIL_MAX) hist.length = MISSILE_TRAIL_MAX;
+  const posArr = trail.geometry.attributes.position.array;
+  for (let i = 0; i < MISSILE_TRAIL_MAX; i++) {
+    if (i < hist.length) {
+      const p = hist[i];
+      posArr[i * 3] = p.x;
+      posArr[i * 3 + 1] = p.y;
+      posArr[i * 3 + 2] = p.z;
+    } else {
+      posArr[i * 3 + 1] = -9999;
+    }
+  }
+  trail.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateMissile(dt) {
+  const w = GameState.winState;
+  if (!w || !w.missile || !w.missileActive) return;
+  const missile = w.missile;
+  const tank = w.tank;
+  const targetPos = tank.position.clone();
+  targetPos.y += 1.5;
+  const toTarget = targetPos.clone().sub(missile.position);
+  const dist = toTarget.length();
+  const desiredDir = toTarget.clone().normalize();
+  const desiredVel = desiredDir.clone().multiplyScalar(w.missileVel.length());
+  const turnRate = 4.5;
+  w.missileVel.lerp(desiredVel, Math.min(1, turnRate * dt));
+
+  let speedMul = 1;
+  if (dist < 40) speedMul = 0.75;
+  if (dist < 22) speedMul = 0.45;
+  if (dist < 12) speedMul = 0.15;
+  missile.position.addScaledVector(w.missileVel, dt * speedMul);
+
+  const v = w.missileVel.clone().normalize();
+  const targetRot = Math.atan2(-v.z, v.x);
+  let diff = targetRot - missile.rotation.y;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  missile.rotation.y += diff * Math.min(1, dt * 10);
+
+  const flame = missile.getObjectByName('flame');
+  const flameInner = missile.getObjectByName('flameInner');
+  if (flame) {
+    const s = 1 + Math.sin(performance.now() * 0.03) * 0.15;
+    flame.scale.setScalar(s);
+  }
+  if (flameInner) {
+    const s = 1 + Math.sin(performance.now() * 0.04 + 1) * 0.2;
+    flameInner.scale.setScalar(s);
+  }
+  updateMissileTrail();
+}
+
+/* ============ 17. 胜利动画 + 自动刷新 ============ */
+function updateWinAnimation(dt) {
+  const w = GameState.winState;
+  if (!w) return;
+  w.t += dt;
+
+  if (w.phase === 'alert') {
+    if (w.sprite) {
+      const pulse = 1 + Math.sin(w.t * 10) * 0.15;
+      w.sprite.scale.set(4 * pulse, 8 * pulse, 1);
+      w.sprite.position.y = w.baseY + 7 + Math.sin(w.t * 6) * 0.5;
+    }
+    if (w.t > 0.5) {
+      w.phase = 'missile';
+      w.t = 0;
+      spawnMissile();
+    }
+    return;
+  }
+
+  if (w.phase === 'missile') {
+    if (w.sprite) {
+      const pulse = 1 + Math.sin(w.t * 10) * 0.15;
+      w.sprite.scale.set(4 * pulse, 8 * pulse, 1);
+      w.sprite.position.y = w.baseY + 7 + Math.sin(w.t * 6) * 0.5;
+    }
+    updateMissile(dt);
+    if (w.missile) {
+      const dist = w.missile.position.distanceTo(w.tank.position);
+      if (dist < 50) {
+        w.phase = 'escape';
+        w.escapeT = 0;
+        if (w.missileVel) w.missileVel.setLength(Math.max(80, w.missileVel.length() * 0.7));
+      }
+    }
+    return;
+  }
+
+  if (w.phase === 'escape') {
+    w.escapeT += dt;
+    const SPEED = 90;
+    w.tank.position.x += w.dir.x * SPEED * dt;
+    w.tank.position.z += w.dir.z * SPEED * dt;
+    w.tank.position.y = terrainHeight(w.tank.position.x, w.tank.position.z);
+
+    const targetRot = Math.atan2(w.dir.x, w.dir.z);
+    let diff = targetRot - w.tank.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    w.tank.rotation.y += diff * Math.min(1, dt * 6);
+
+    updateMissile(dt);
+
+    const out = GameState.terrainSize / 2 + 30;
+    if (Math.abs(w.tank.position.x) > out || Math.abs(w.tank.position.z) > out) {
+      // 清场
+      if (w.missile) { GameState.scene.remove(w.missile); w.missile = null; }
+      if (GameState.missileTrail) {
+        GameState.scene.remove(GameState.missileTrail);
+        GameState.missileTrail.geometry.dispose();
+        GameState.missileTrail.material.dispose();
+        GameState.missileTrail = null;
+      }
+      if (w.sprite) {
+        GameState.scene.remove(w.sprite);
+        GameState.winSprite = null;
+      }
+      // 移除旧坦克
+      const idx = GameState.objects.indexOf(w.tank);
+      if (idx >= 0) GameState.objects.splice(idx, 1);
+      GameState.scene.remove(w.tank);
+      w.tank.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          const mats = Array.isArray(c.material) ? c.material : [c.material];
+          mats.forEach(m => m.dispose && m.dispose());
+        }
+      });
+
+      GameState.winState = null;
+      GameState.targetTank = null;
+      GameState.locked = false;
+
+      // 时间未结束 → 立刻生成下一辆
+      if (GameState.phase === 'playing' && GameState.timeLeft > 0) {
+        setTimeout(() => {
+          if (GameState.phase === 'playing') spawnTank();
+        }, 100);
+      }
+    }
+  }
+}
+
+/* ============ 18. HUD / 结算 ============ */
+function updateHUD() {
+  const p = GameState.panel;
+  if (!p) return;
+  p.querySelector('#ftg-found').textContent = GameState.foundCount;
+}
+
+function endGame() {
+  if (GameState.phase !== 'playing') return;
+  GameState.phase = 'won';
+  GameState.locked = true;
+  const p = GameState.panel;
+
+  // 更新最佳成绩
+  try {
+    const saved = parseInt(localStorage.getItem('tw_ftg_best') || '0', 10);
+    if (GameState.foundCount > saved) {
+      localStorage.setItem('tw_ftg_best', String(GameState.foundCount));
+      GameState.bestScore = GameState.foundCount;
+    } else {
+      GameState.bestScore = saved;
+    }
+  } catch (e) { GameState.bestScore = GameState.foundCount; }
+
+  p.querySelector('#ftg-result-found').textContent = GameState.foundCount;
+  p.querySelector('#ftg-result-best').textContent = GameState.bestScore;
+  p.querySelector('#ftg-result').style.display = 'flex';
+
+  // 随机推荐
+  const cardEl = p.querySelector('#ftg-result-card');
+  let tk = null;
+  try {
+    if (typeof tanks !== 'undefined' && tanks.length) {
+      tk = tanks[Math.floor(Math.random() * tanks.length)];
+    }
+  } catch (e) {}
+  if (tk) {
+    cardEl.style.display = 'block';
+    cardEl.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:center;">
+        <img src="${esc(tk.imgs[0] || '')}" alt=""
+             style="width:72px;height:72px;object-fit:contain;background:#1a1a1e;border-radius:10px;flex-shrink:0;"
+             onerror="this.style.opacity='0.3'">
+        <div style="flex:1;min-width:0;text-align:left;">
+          <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:3px;">${esc(tk.name)}</div>
+          <div style="font-size:11px;color:#8a8a92;line-height:1.4;">${esc(getCardInfoSafe(tk))}</div>
+          <div style="font-size:11px;color:#ffd83a;margin-top:6px;">点击查看详情 →</div>
+        </div>
+      </div>
+    `;
+    cardEl.onclick = () => {
+      closeFindTankGame();
+      if (typeof showTankDetail === 'function') setTimeout(() => showTankDetail(tk), 120);
+    };
+    cardEl.onmouseenter = () => { cardEl.style.background = 'rgba(255,255,255,0.09)'; cardEl.style.borderColor = 'rgba(255,216,58,0.4)'; };
+    cardEl.onmouseleave = () => { cardEl.style.background = 'rgba(255,255,255,0.05)'; cardEl.style.borderColor = 'rgba(255,255,255,0.1)'; };
+  } else {
+    cardEl.style.display = 'none';
+  }
+  if (typeof playSound === 'function') playSound('open');
+}
+
+/* ============ 19. 主循环 ============ */
+function startGameLoop() {
+  if (GameState.animId) return;
+  if (!GameState.clock) GameState.clock = new THREE.Clock();
+  GameState.clock.getDelta();
 
   const loop = () => {
-    StoryGame.animId = requestAnimationFrame(loop);
-    const dt = Math.min(0.05, StoryGame.clock.getDelta());
+    GameState.animId = requestAnimationFrame(loop);
+    const dt = Math.min(0.05, GameState.clock.getDelta());
 
-    if (StoryGame.phase === 'playing' || StoryGame.phase === 'dialog') {
-      updatePlayerControls(dt);
-      updateTargetTanks(dt);
-      if (StoryGame.npcMarker) {
-        StoryGame.npcMarker.position.y = terrainHeight(StoryGame.npcPos.x, StoryGame.npcPos.z) + 5 + Math.sin(performance.now() * 0.003) * 0.3;
+    // 计时
+    if (GameState.phase === 'playing') {
+      GameState.timeLeft -= dt;
+      if (GameState.timeLeft <= 0) {
+        GameState.timeLeft = 0;
+        updateTimerUI();
+        endGame();
+      } else {
+        updateTimerUI();
       }
-      if (StoryGame.summitFlag) {
-        StoryGame.summitFlag.rotation.y = Math.sin(performance.now() * 0.001) * 0.4;
-      }
-      updateCamera();
-      drawMinimap();
-    } else if (StoryGame.phase === 'menu') {
-      updateCamera();
     }
 
-    if (StoryGame.renderer) {
-      StoryGame.renderer.render(StoryGame.scene, StoryGame.camera);
+    // 天气渐变
+    updateWeather(dt);
+
+    // 粒子
+    updateParticles(dt);
+
+    // 胜利动画
+    if (GameState.winState) updateWinAnimation(dt);
+
+    // 相机约束（不能钻到地图下面）
+    if (GameState.controls) {
+      GameState.controls.update();
+      const camY = GameState.camera.position.y;
+      const minY = terrainHeight(GameState.camera.position.x, GameState.camera.position.z) + 6;
+      if (camY < minY) {
+        GameState.camera.position.y = minY;
+      }
+    }
+
+    if (GameState.renderer && GameState.scene && GameState.camera) {
+      GameState.renderer.render(GameState.scene, GameState.camera);
     }
   };
-  StoryGame.animId = requestAnimationFrame(loop);
+  GameState.animId = requestAnimationFrame(loop);
 }
 
-function stopLoop() {
-  if (StoryGame.animId) {
-    cancelAnimationFrame(StoryGame.animId);
-    StoryGame.animId = null;
+function updateTimerUI() {
+  const el = document.getElementById('ftg-timer');
+  if (el) el.textContent = GameState.timeLeft.toFixed(1);
+}
+
+function stopGameLoop() {
+  if (GameState.animId) {
+    cancelAnimationFrame(GameState.animId);
+    GameState.animId = null;
   }
 }
 
-/* ============================================================
-   12. 键盘
-   ============================================================ */
+/* ============ 20. ESC ============ */
 document.addEventListener('keydown', e => {
-  if (!StoryGame.panel || StoryGame.panel.style.display === 'none') return;
-  if (e.repeat) return;
-  switch (e.key) {
-    case 'w': case 'W': case 'ArrowUp':    StoryGame.keys.up = true; break;
-    case 's': case 'S': case 'ArrowDown':  StoryGame.keys.down = true; break;
-    case 'a': case 'A': case 'ArrowLeft':  StoryGame.keys.left = true; break;
-    case 'd': case 'D': case 'ArrowRight': StoryGame.keys.right = true; break;
-    case 'e': case 'E':
-      // 交互快捷键
-      if (StoryGame.phase === 'playing') {
-        const d = Math.hypot(StoryGame.px - StoryGame.npcPos.x, StoryGame.pz - StoryGame.npcPos.z);
-        if (d < StoryGame.npcRadius * 2) showNpcDialog();
-        else showHint('附近没有可交互单位');
-      }
-      break;
-    case 'Escape':
-      if (StoryGame.dialogOpen) closeDialog();
-      else backToMenu();
-      break;
-  }
+  if (e.key !== 'Escape') return;
+  if (!GameState.panel || GameState.panel.style.display === 'none') return;
+  if (GameState.phase === 'menu') { closeFindTankGame(); return; }
+  if (GameState.phase === 'playing') { showMenu(); return; }
+  if (GameState.phase === 'won') { beginLevel(true); }
 });
 
-document.addEventListener('keyup', e => {
-  if (!StoryGame.panel || StoryGame.panel.style.display === 'none') return;
-  switch (e.key) {
-    case 'w': case 'W': case 'ArrowUp':    StoryGame.keys.up = false; break;
-    case 's': case 'S': case 'ArrowDown':  StoryGame.keys.down = false; break;
-    case 'a': case 'A': case 'ArrowLeft':  StoryGame.keys.left = false; break;
-    case 'd': case 'D': case 'ArrowRight': StoryGame.keys.right = false; break;
-  }
-});
-
-/* ============================================================
-   13. 导出
-   ============================================================ */
+/* ============ 导出 ============ */
 window.startFindTankGame = startFindTankGame;
-window.closeFindTankGame = closeStoryGame;
+window.closeFindTankGame = closeFindTankGame;
