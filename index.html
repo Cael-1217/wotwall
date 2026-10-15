@@ -24,7 +24,7 @@
     <button class="tab-btn active" data-page="tank-page">展品</button>
     <button class="tab-btn" data-page="author-page">作者</button>
     <button class="tab-btn" data-page="tools-page">工具</button>
-    <button class="btn btn-primary" onclick="startFindTankGame()">游戏</button>
+    <button class="tab-btn" data-page="game-page">游戏</button>
     <button class="tab-btn" data-page="submit-page">投稿</button>
     <button class="tab-btn" data-page="user-page">我的</button>
     <button class="tab-btn" data-page="settings-page">设置</button>
@@ -188,6 +188,24 @@
     </div>
   </div>
 
+  <!-- ★ 新增：游戏页面（卡片式） -->
+  <div id="game-page" class="page-content">
+    <div class="game-card-grid">
+      <div class="game-entry" onclick="startFindTankGame()">
+        <div class="game-entry-icon">🎯</div>
+        <h3>寻找坦克</h3>
+        <div class="desc">60 秒限时挑战，在 3D 地图中找到隐藏的坦克。天气会随时间渐变，边缘是浓雾。</div>
+        <div class="game-entry-tag">3D · 限时挑战</div>
+      </div>
+      <div class="game-entry" onclick="startLastStand()">
+        <div class="game-entry-icon">🛡️</div>
+        <h3>背水一战</h3>
+        <div class="desc">部署小队，死守中央废弃仓库，抵御一波又一波来袭的敌军。8 种特色坦克、随机掩体、小 Boss 与大 Boss。</div>
+        <div class="game-entry-tag">2D · 塔防</div>
+      </div>
+    </div>
+  </div>
+
   <div id="submit-page" class="page-content">
     <div id="submit-need-login" style="display:none;">
       <div class="tool-card" style="text-align:center;">
@@ -224,7 +242,6 @@
         </label>
         <div class="preview-grid" id="sub-preview"></div>
 
-        <!-- 实验性 3D 概览开关 -->
         <div class="tool-row checkbox-row" style="margin-top:14px;">
           <input type="checkbox" id="sub-has-3d">
           <span>实验性 3D 概览（勾选后，详情页将显示"生成 3D 概览"按钮）</span>
@@ -500,11 +517,11 @@
 <script src="audio.js"></script>
 <script src="app.js"></script>
 <script src="share.js"></script>
-<!-- 本地 Three.js 库（提前加载，供 3d-preview.js 与 find-tank-game.js 共用） -->
 <script src="three.min.js"></script>
 <script src="OrbitControls.js"></script>
 
 <script src="3d-preview.js"></script>
 <script src="find-tank-game.js"></script>
+<script src="last-stand.js"></script>
 </body>
 </html>
