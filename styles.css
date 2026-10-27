@@ -1038,6 +1038,7 @@ html.light #weather-layer { opacity: 0.85; }
   transition: width 0.15s, height 0.15s, box-shadow 0.15s;
   box-shadow: 0 0 calc(var(--intensity) * 20px) var(--accent);
 }
+
 /* ==================== 管理员内置控制台 ==================== */
 #admin-console-btn {
   position: fixed;
@@ -1179,21 +1180,22 @@ body.destroy-mode #admin-console-btn { display: none !important; }
   padding: 6px 0;
 }
 .admin-console-input input::placeholder { color: #5a5a62; }
+
 /* ==================== 游戏入口卡片 ==================== */
 .game-card-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
 }
 .game-entry {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 18px 16px;
+  padding: 18px 16px 14px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease;
 }
 .game-entry::before {
   content: '';
@@ -1201,12 +1203,23 @@ body.destroy-mode #admin-console-btn { display: none !important; }
   background: var(--accent);
   opacity: 0.55;
 }
-.game-entry:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.28);
+.game-entry::after {
+  content: '进入 →';
+  position: absolute; right: 14px; bottom: 12px;
+  font-size: 11px; color: var(--text-faint);
+  font-family: ui-monospace, monospace;
+  transition: color 0.15s, transform 0.15s;
 }
-html.light .game-entry:hover { box-shadow: 0 8px 22px rgba(0,0,0,0.08); }
+.game-entry:hover::after { color: var(--accent); transform: translateX(3px); }
+@media (hover: hover) {
+  .game-entry:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.28);
+  }
+  html.light .game-entry:hover { box-shadow: 0 8px 22px rgba(0,0,0,0.08); }
+}
+.game-entry:active { transform: scale(0.98); }
 .game-entry-icon { font-size: 34px; margin-bottom: 8px; }
 .game-entry h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
 .game-entry .desc {
@@ -1223,262 +1236,6 @@ html.light .game-entry:hover { box-shadow: 0 8px 22px rgba(0,0,0,0.08); }
   font-family: ui-monospace, monospace;
 }
 @media (max-width: 520px) {
-  .game-card-grid { grid-template-columns: 1fr; }
-}
-
-/* ==================== 背水一战 ==================== */
-#ls-panel {
-  position: fixed; inset: 0; z-index: 400;
-  background: #0b0b0e;
-  display: none; flex-direction: column;
-  font-family: inherit;
-  color: #e8e8ea;
-}
-#ls-panel.active { display: flex; }
-
-.ls-header {
-  display: flex; align-items: center; gap: 14px;
-  padding: 10px 14px;
-  padding-top: calc(10px + env(safe-area-inset-top));
-  background: #131316;
-  border-bottom: 1px solid #2a2a2e;
-  flex-shrink: 0;
-  font-size: 13px;
-  flex-wrap: wrap;
-}
-.ls-header .ls-title { font-weight: 700; color: #c9a860; font-size: 15px; }
-.ls-header .ls-stat { color: #b8b8c0; }
-.ls-header .ls-stat b { color: #fff; font-family: ui-monospace, monospace; margin-left: 4px; }
-.ls-header .ls-spacer { flex: 1; }
-.ls-header button {
-  padding: 6px 12px; border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.05);
-  color: #e8e8ea; font-family: inherit; font-size: 12px;
-  cursor: pointer;
-}
-.ls-header button:hover { background: rgba(255,255,255,0.1); }
-
-.ls-canvas-wrap {
-  flex: 1; position: relative; min-height: 0;
-  background: #0b0b0e;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-#ls-canvas {
-  display: block;
-  background: #14141a;
-  touch-action: none;
-}
-
-.ls-ui {
-  flex-shrink: 0;
-  background: #131316;
-  border-top: 1px solid #2a2a2e;
-  padding: 10px 12px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom));
-}
-.ls-ui-top {
-  display: flex; align-items: center; gap: 14px;
-  font-size: 12px; color: #b8b8c0;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.ls-ui-top .ls-boss-tag {
-  color: #ff6b6b;
-  border: 1px solid #6a2a2a;
-  padding: 1px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-}
-.ls-squad {
-  display: flex; gap: 8px; overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-.ls-squad::-webkit-scrollbar { display: none; }
-.ls-card {
-  flex: 0 0 128px;
-  background: #1a1a20;
-  border: 1px solid #2a2a32;
-  border-radius: 8px;
-  padding: 8px 9px;
-  position: relative;
-  overflow: hidden;
-  cursor: default;
-  transition: border-color 0.15s;
-}
-.ls-card.dead { opacity: 0.35; filter: grayscale(0.8); }
-.ls-card.warn { border-color: #6a4a20; }
-.ls-card.danger { border-color: #6a2020; }
-.ls-card .ls-card-name {
-  font-size: 12px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-bottom: 2px;
-}
-.ls-card .ls-card-cat { font-size: 10px; color: #8a8a92; margin-bottom: 6px; }
-.ls-card .ls-hpbar {
-  height: 5px; background: #2a2a32; border-radius: 3px;
-  overflow: hidden; margin-bottom: 5px;
-}
-.ls-card .ls-hpbar-fill {
-  height: 100%; background: linear-gradient(90deg, #4ade80, #22c55e);
-  transition: width 0.2s ease;
-}
-.ls-card.warn .ls-hpbar-fill { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-.ls-card.danger .ls-hpbar-fill { background: linear-gradient(90deg, #ef4444, #dc2626); }
-.ls-card .ls-hptext {
-  font-size: 10px; font-family: ui-monospace, monospace;
-  color: #b8b8c0; display: flex; justify-content: space-between;
-}
-.ls-card .ls-reload {
-  margin-top: 5px;
-  height: 3px; background: #2a2a32; border-radius: 2px; overflow: hidden;
-}
-.ls-card .ls-reload-fill {
-  height: 100%; background: #c9a860;
-  transition: width 0.1s linear;
-}
-.ls-card .ls-ability {
-  margin-top: 6px;
-  font-size: 10px; color: #8a8a92;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.ls-card .ls-dead-mark {
-  position: absolute; inset: 0;
-  display: none;
-  align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.55);
-  font-size: 11px; color: #ff6b6b; font-weight: 700;
-}
-.ls-card.dead .ls-dead-mark { display: flex; }
-.ls-card .ls-armor {
-  position: absolute; top: 6px; right: 6px;
-  font-size: 10px; color: #4a90e2;
-  font-family: ui-monospace, monospace;
-}
-
-.ls-overlay {
-  position: absolute; inset: 0;
-  background: rgba(10,10,14,0.94);
-  z-index: 10;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  text-align: center;
-  overflow-y: auto;
-}
-.ls-overlay.active { display: flex; }
-.ls-overlay h2 {
-  margin: 0 0 6px;
-  font-size: 24px; font-weight: 800;
-  background: linear-gradient(135deg, #c9a860, #8a6f3a);
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
-}
-.ls-overlay p { color: #8a8a92; font-size: 13px; margin: 0 0 18px; line-height: 1.6; max-width: 380px; }
-.ls-btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
-.ls-btn {
-  padding: 11px 26px; border-radius: 999px; border: none;
-  background: linear-gradient(135deg, #c9a860, #8a6f3a);
-  color: #1a1611; font-family: inherit; font-size: 14px; font-weight: 700;
-  cursor: pointer; min-width: 130px;
-  transition: transform 0.15s;
-}
-.ls-btn:active { transform: scale(0.96); }
-.ls-btn.ghost {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.15);
-  color: #e8e8ea; font-weight: 600;
-}
-
-.ls-select-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-  width: 100%;
-  max-width: 720px;
-  margin-bottom: 18px;
-}
-.ls-select-card {
-  background: #1a1a20;
-  border: 1px solid #2a2a32;
-  border-radius: 8px;
-  padding: 10px 11px;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s, transform 0.15s;
-}
-.ls-select-card:hover { border-color: #4a4a52; }
-.ls-select-card.selected {
-  border-color: #c9a860;
-  background: rgba(201,168,96,0.08);
-}
-.ls-select-card.picked {
-  border-color: #4ade80;
-  background: rgba(74,222,128,0.06);
-}
-.ls-select-card .lsc-name {
-  font-size: 13px; font-weight: 700; margin-bottom: 3px;
-}
-.ls-select-card .lsc-cat {
-  font-size: 10px; color: #8a8a92;
-  margin-bottom: 7px;
-}
-.ls-select-card .lsc-ability {
-  font-size: 10px; color: #a0a0a8;
-  line-height: 1.5;
-}
-.ls-select-card .lsc-stat {
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: #6a6a72;
-  font-family: ui-monospace, monospace;
-  margin-top: 6px;
-}
-
-.ls-select-hint {
-  font-size: 12px; color: #c9a860;
-  margin-bottom: 12px;
-}
-
-.ls-diff-row {
-  display: flex; gap: 12px; margin-bottom: 20px;
-}
-.ls-diff-btn {
-  padding: 14px 28px; border-radius: 10px;
-  border: 1px solid #2a2a32; background: #1a1a20;
-  color: #e8e8ea; font-family: inherit; font-size: 14px; font-weight: 600;
-  cursor: pointer; min-width: 130px;
-  transition: all 0.15s;
-}
-.ls-diff-btn:hover { border-color: #4a4a52; }
-.ls-diff-btn.selected {
-  border-color: #c9a860;
-  background: rgba(201,168,96,0.1);
-  color: #c9a860;
-}
-
-/* Toast 消息 */
-#ls-toast {
-  position: fixed;
-  left: 50%; top: 14%;
-  transform: translateX(-50%) translateY(-20px);
-  background: rgba(20,20,26,0.96);
-  border: 1px solid #3a3a42;
-  color: #e8e8ea;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  z-index: 500;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s, transform 0.25s;
-  max-width: 80vw;
-  text-align: center;
-}
-#ls-toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  .game-entry { padding: 16px 14px 12px; }
+  .game-entry-icon { font-size: 30px; }
 }
