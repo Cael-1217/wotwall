@@ -20,6 +20,12 @@ const FM = { W: 220, H: 110, GRID: 40 };
 
 // ==================== 入口 ====================
 window.startTankFactory = function () {
+  if (typeof state !== 'undefined' && !state.currentUser) {
+    if (typeof toast === 'function') toast('请先在「我的」页面登录');
+    else alert('请先登录');
+    return;
+  }
+  fMigrateOldSave();
   fBuildPanel();
   FUI.panel.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -63,6 +69,7 @@ function fShowMainMenu() {
   const mm = FUI.panel.querySelector('#fm-mainmenu');
   mm.style.display = 'flex';
   mm.classList.add('active');
+  
   FUI.hud.style.display = 'none';
   FUI.leftBar.style.display = 'none';
   FUI.canvasWrap.style.display = 'none';
@@ -89,7 +96,7 @@ function fShowMainMenu() {
     </div>
     <div class="fm-mm-right">
       <canvas id="fm-mm-preview"></canvas>
-      <div class="fm-mm-preview-label">${lastSlot ? '最近存档：' + (slots[lastSlot].name || ('存档 ' + lastSlot)) : '尚无存档'}</div>
+      <div class="fm-mm-preview-label" id="fm-mm-preview-label">${lastSlot ? '最近存档：' + (slots[lastSlot].name || ('存档 ' + lastSlot)) : '尚无存档'}</div>
     </div>
   `;
   mm.querySelector('#fm-mm-new').onclick = () => fShowSaveScreen(true);
@@ -101,12 +108,48 @@ function fShowMainMenu() {
   fStartMenuPreview(lastSlot ? slots[lastSlot] : null);
 }
 
+// 自定义提示框，解决手机浏览器不支持 prompt 的问题
+function fShowPrompt(title, defaultValue, callback) {
+  const modal = document.createElement('div');
+  modal.className = 'fm-custom-prompt';
+  modal.innerHTML = `
+    <div class="fm-cp-box">
+      <div class="fm-cp-title">${title}</div>
+      <input type="text" class="fm-cp-input" value="${defaultValue || ''}" id="fm-cp-input">
+      <div class="fm-cp-actions">
+        <button class="fm-btn" id="fm-cp-cancel">取消</button>
+        <button class="fm-btn primary" id="fm-cp-ok">确定</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const input = modal.querySelector('#fm-cp-input');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  
+  const close = () => modal.remove();
+  modal.querySelector('#fm-cp-cancel').onclick = close;
+  modal.querySelector('#fm-cp-ok').onclick = () => {
+    const val = input.value.trim();
+    close();
+    if (callback) callback(val);
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      const val = input.value.trim();
+      close();
+      if (callback) callback(val);
+    }
+    if (e.key === 'Escape') close();
+  };
+}
+
 function fStartMenuPreview(saveData) {
   if (FUI.menuPreviewRAF) cancelAnimationFrame(FUI.menuPreviewRAF);
   const cv = FUI.panel.querySelector('#fm-mm-preview');
   if (!cv) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = cv.clientWidth || 400, h = cv.clientHeight || 400;
+  const w = cv.clientWidth || 300;
+  const h = cv.clientHeight || 300;
   cv.width = w * dpr; cv.height = h * dpr;
   const ctx = cv.getContext('2d');
   ctx.scale(dpr, dpr);
@@ -131,46 +174,54 @@ function fStartMenuPreview(saveData) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
 
-    // 缩略机器
-    if (saveData && saveData.machines) {
+    // 根据存档渲染缩略模型
+    if (saveData) {
       const cx = w / 2, cy = h / 2;
       const scale = 0.5;
-      saveData.machines.forEach((m, i) => {
-        const mx = cx + (m.x - 0) * scale - 55;
-        const my = cy + (m.y - 0) * scale - 27;
-        ctx.fillStyle = (F_MACHINES[m.type] && F_MACHINES[m.type].c) || '#5a6a7a';
-        ctx.globalAlpha = 0.6;
-        ctx.fillRect(mx, my, 110, 54);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.strokeRect(mx, my, 110, 54);
-      });
-      saveData.warehouses.forEach((wh, i) => {
-        const mx = cx + (wh.x - 0) * scale - 60;
-        const my = cy + (wh.y - 0) * scale - 40;
-        ctx.fillStyle = '#5a5a8a';
-        ctx.globalAlpha = 0.8;
-        ctx.fillRect(mx, my, 120, 80);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-        ctx.strokeRect(mx, my, 120, 80);
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('仓库', mx + 60, my + 44);
-      });
-      // 卡车
-      saveData.trucks.forEach(t => {
-        const tx = cx + t.x * scale;
-        const ty = cy + t.y * scale;
-        ctx.fillStyle = '#c9a860';
-        ctx.fillRect(tx - 8, ty - 5, 16, 10);
-      });
+      
+      if (saveData.machines) {
+        saveData.machines.forEach((m) => {
+          const mx = cx + (m.x - 0) * scale - 55;
+          const my = cy + (m.y - 0) * scale - 27;
+          ctx.fillStyle = (F_MACHINES[m.type] && F_MACHINES[m.type].c) || '#5a6a7a';
+          ctx.globalAlpha = 0.6;
+          ctx.fillRect(mx, my, 110, 54);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+          ctx.strokeRect(mx, my, 110, 54);
+        });
+      }
+      
+      if (saveData.warehouses) {
+        saveData.warehouses.forEach((wh) => {
+          const mx = cx + (wh.x - 0) * scale - 60;
+          const my = cy + (wh.y - 0) * scale - 40;
+          ctx.fillStyle = '#5a5a8a';
+          ctx.globalAlpha = 0.8;
+          ctx.fillRect(mx, my, 120, 80);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+          ctx.strokeRect(mx, my, 120, 80);
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.font = '12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('仓库', mx + 60, my + 44);
+        });
+      }
+      
+      if (saveData.trucks) {
+        saveData.trucks.forEach(t => {
+          const tx = cx + t.x * scale;
+          const ty = cy + t.y * scale;
+          ctx.fillStyle = '#c9a860';
+          ctx.fillRect(tx - 8, ty - 5, 16, 10);
+        });
+      }
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
       ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('尚无工厂', w / 2, h / 2);
+      ctx.fillText('尚无存档', w / 2, h / 2);
     }
   };
   loop();
@@ -214,18 +265,41 @@ function fShowMainSettings() {
 // ==================== 存档管理 ====================
 function fShowSaveScreen(isNew) {
   const mm = FUI.panel.querySelector('#fm-mainmenu');
+  if (!mm) return;
+  if (FUI.menuPreviewRAF) { cancelAnimationFrame(FUI.menuPreviewRAF); FUI.menuPreviewRAF = null; }
+  
   mm.innerHTML = `
-    <div class="fm-mm-left">
-      <div class="fm-mm-logo">${isNew ? '选择存档位' : '存档管理'}</div>
+    <div class="fm-mm-left" style="flex: 1; overflow-y: auto; padding: 24px; justify-content: flex-start;">
+      <div class="fm-mm-logo" style="font-size: 24px; margin-bottom: 4px;">${isNew ? '选择存档位' : '存档管理'}</div>
       <div class="fm-mm-sub">每人共 3 个档位</div>
-      <div class="fm-mm-buttons">
+      <div class="fm-mm-saves-list" id="fm-saves-list" style="padding: 0; margin-top: 16px;"></div>
+      <div style="margin-top: 20px;">
         <button class="fm-mm-btn ghost" id="fm-mm-back">返回主菜单</button>
       </div>
     </div>
-    <div class="fm-mm-right fm-mm-saves-list" id="fm-saves-list"></div>
+    <div class="fm-mm-right">
+      <canvas id="fm-mm-preview"></canvas>
+      <div class="fm-mm-preview-label" id="fm-mm-preview-label">点击存档查看预览</div>
+    </div>
   `;
-  mm.querySelector('#fm-mm-back').onclick = () => fShowMainMenu();
+  
+  const back = mm.querySelector('#fm-mm-back');
+  if (back) back.onclick = () => fShowMainMenu();
+  
   fRenderSaveList(isNew);
+  
+  // 自动选中第一个存在的存档进行预览
+  const all = fLoadAll();
+  const slots = all.slots || {};
+  let previewSlot = null;
+  for(let i=1; i<=3; i++) { if (slots[i]) { previewSlot = slots[i]; break; } }
+  if (previewSlot) {
+    fStartMenuPreview(previewSlot);
+    const l = mm.querySelector('#fm-mm-preview-label');
+    if (l) l.textContent = '预览：' + (previewSlot.name || '存档');
+  } else {
+    fStartMenuPreview(null);
+  }
 }
 
 function fRenderSaveList(isNew) {
@@ -233,17 +307,20 @@ function fRenderSaveList(isNew) {
   if (!container) return;
   const all = fLoadAll();
   const slots = all.slots || {};
+  
   let html = '';
   for (let i = 1; i <= 3; i++) {
     const s = slots[i];
     if (s) {
-      const era = fGetEraByYear(fRoundToYear(s.round));
+      const round = s.round || 1;
+      const year = 1918 + round;
+      let eraName = '间战期';
+      try { eraName = fGetEraByYear(year).name; } catch (e) {}
       html += `
         <div class="fm-save-card" data-slot="${i}">
           <div class="fm-save-name">${escapeHtml(s.name || ('存档 ' + i))}</div>
-          <div class="fm-save-info">${era.name} · ${fRoundToYear(s.round)} 年 · 第 ${s.round} 轮</div>
+          <div class="fm-save-info">${eraName} · ${year} 年 · 第 ${round} 轮</div>
           <div class="fm-save-info">资金 ${s.money} · 已完成 ${s.completedOrders || 0} 单</div>
-          <div class="fm-save-info dim">${s.savedAt ? new Date(s.savedAt).toLocaleString('zh-CN') : ''}</div>
           <div class="fm-save-actions">
             ${isNew ? `<button class="fm-save-btn primary" data-act="new" data-slot="${i}">覆盖新建</button>`
                     : `<button class="fm-save-btn primary" data-act="enter" data-slot="${i}">进入</button>`}
@@ -256,7 +333,7 @@ function fRenderSaveList(isNew) {
       html += `
         <div class="fm-save-card empty" data-slot="${i}">
           <div class="fm-save-name">空档位 ${i}</div>
-          <div class="fm-save-info dim">点击下方按钮新建</div>
+          <div class="fm-save-info dim">暂无存档</div>
           <div class="fm-save-actions">
             <button class="fm-save-btn primary" data-act="new" data-slot="${i}">新建存档</button>
           </div>
@@ -265,6 +342,24 @@ function fRenderSaveList(isNew) {
     }
   }
   container.innerHTML = html;
+  
+  // 绑定事件：点击卡片预览
+  container.querySelectorAll('.fm-save-card').forEach(card => {
+    const slot = parseInt(card.dataset.slot, 10);
+    card.onclick = (e) => {
+      if (e.target.tagName === 'BUTTON') return; 
+      const s = slots[slot];
+      if (s) {
+        fStartMenuPreview(s);
+        const l = FUI.panel.querySelector('#fm-mm-preview-label');
+        if (l) l.textContent = '预览：' + (s.name || '存档 ' + slot);
+        
+        container.querySelectorAll('.fm-save-card').forEach(c => c.style.borderColor = 'var(--f-border)');
+        card.style.borderColor = 'var(--f-accent)';
+      }
+    };
+  });
+
   container.querySelectorAll('button[data-act]').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -283,14 +378,15 @@ function fCreateNewSave(slot) {
   if (all.slots && all.slots[slot]) {
     if (!confirm('该档位已有存档，确定覆盖？')) return;
   }
-  const name = prompt('存档命名', '存档 ' + slot) || ('存档 ' + slot);
-  const data = fNewState(slot, name);
-  // 初始布局：一个仓库
-  data.warehouses.push({ id: fUid(), x: 0, y: 0, items: {} });
-  fSaveSlot(slot, data);
-  FGame.data = data;
-  fEnterGame();
-  if (!data.tutorialDone) fStartTutorial();
+  fShowPrompt('给存档起个名字', '存档 ' + slot, (name) => {
+    if (!name) name = '存档 ' + slot;
+    const data = fNewState(slot, name);
+    data.warehouses.push({ id: fUid(), x: 0, y: 0, items: {} });
+    fSaveSlot(slot, data);
+    FGame.data = data;
+    fEnterGame();
+    if (!data.tutorialDone) fStartTutorial();
+  });
 }
 
 function fContinueSlot(slot) {
@@ -304,21 +400,31 @@ function fContinueSlot(slot) {
 function fRenameSlot(slot) {
   const all = fLoadAll();
   if (!all.slots || !all.slots[slot]) return;
-  const name = prompt('新名称', all.slots[slot].name || ('存档 ' + slot));
-  if (name) { all.slots[slot].name = name; fSaveAll(all); fRenderSaveList(false); }
+  fShowPrompt('输入新名称', all.slots[slot].name || ('存档 ' + slot), (name) => {
+    if (name) {
+      all.slots[slot].name = name;
+      fSaveAll(all);
+      fRenderSaveList(false);
+    }
+  });
 }
 
 function fResetSlot(slot) {
   const all = fLoadAll();
   if (!all.slots || !all.slots[slot]) return;
-  // 三重防误触
-  const input = prompt('重置会永久删除存档。\n请输入大写 RESET 确认删除：');
-  if (input !== 'RESET') { fUIToast('已取消'); return; }
-  const input2 = prompt('再确认一次：请输入存档名（' + (all.slots[slot].name || ('存档 ' + slot)) + '）');
-  if (input2 !== (all.slots[slot].name || ('存档 ' + slot))) { fUIToast('已取消'); return; }
-  fDeleteSlot(slot);
-  fUIToast('已删除');
-  fRenderSaveList(false);
+  fShowPrompt('重置会永久删除存档。\n请输入大写 RESET 确认删除：', '', (input) => {
+    if (input !== 'RESET') { fUIToast('已取消'); return; }
+    fShowPrompt('再确认一次：请输入存档名', all.slots[slot].name || ('存档 ' + slot), (input2) => {
+      if (input2 !== (all.slots[slot].name || ('存档 ' + slot))) { fUIToast('已取消'); return; }
+      fDeleteSlot(slot);
+      fUIToast('已删除');
+      fRenderSaveList(false);
+      // 刷新预览
+      fStartMenuPreview(null);
+      const l = FUI.panel.querySelector('#fm-mm-preview-label');
+      if (l) l.textContent = '点击存档查看预览';
+    });
+  });
 }
 
 // ==================== 进入游戏 ====================
@@ -347,10 +453,7 @@ function fEnterGame() {
   fResizeCanvas();
   fStartLoop();
 
-  // 如果有可用订单没选，弹出订单选择
-  if (FGame.data.activeOrders.length === 0 && FGame.data.availableOrders.length > 0) {
-    setTimeout(() => fShowOrderSelector(), 300);
-  } else {
+  if (FGame.data.activeOrders.length === 0) {
     setTimeout(() => fShowOrderSelector(), 300);
   }
 }
@@ -363,7 +466,10 @@ function fExitGame() {
   FGame.data = null;
 }
 
-// ==================== HUD ====================
+// ==================== HUD & 左侧书签 & 其他渲染/交互（保持不变，直接拷贝原文件剩余的） ====================
+// 因为篇幅限制，这里假设你已经有了原文件中 HUD、左侧面板、Canvas渲染等剩余代码。
+// 如果你需要这部分完整代码，请继续往下复制。
+
 function fRenderHUD() {
   const year = fCurYear();
   const era = fGetEraByYear(year);
@@ -417,7 +523,6 @@ function fUIUpdateHUD() {
     const b = document.getElementById('fm-hud-' + s);
     if (b) b.classList.toggle('active', FGame.data.timeScale === parseInt(s));
   });
-  // 订单倒计时
   if (FGame.data.activeOrders.length > 0) {
     FUI.bottomBar.style.display = 'flex';
     fRenderActiveOrdersBar();
@@ -444,7 +549,11 @@ function fRenderActiveOrdersBar() {
   FUI.bottomBar.innerHTML = html;
 }
 
-// ==================== 左侧书签 ====================
+// 以下省略，请直接保留原来 factory-ui.js 里的以下函数：
+// fRenderLeftBar, fToggleLeftPanel, fRenderLeftPanel, fRenderSourceList, fSignSource, fUnsignSource, fRenderMachineList, fRenderTruckList, fBuyTruck, fRenderWarehouseList, fBuyWarehouse, fRenderOrderList, fTakeOrder, fShowOrderSelector, fResizeCanvas, fRender, fDrawSource, fDrawWarehouse, fDrawMachine, fDrawTruck, fDrawGhost, fBindCanvasEvents, fScreenToWorld, fWorldToScreen, fFindMachineAt, fFindTruckAt, fStartDragPlace, fConfirmPlace, fShowMachineMenu, fShowTruckMenu, fCloseMenus, fUIShowRoundEnd, fRenderUpgradeRow, fBuyUpgrade, fUIToast, fStartTutorial, fShowTutorialStep.
+
+// 因为全量代码太长，如果你需要这后半段，请把旧版 factory-ui.js 中对应函数保留即可，
+// 只需要用我上面给的代码替换 `fShowMainMenu` 及它前面的部分即可。/ ==================== 左侧书签 ====================
 function fRenderLeftBar() {
   const items = [
     { id: 'source', icon: '🏭', label: '原料' },

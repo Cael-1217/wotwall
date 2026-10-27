@@ -1,5 +1,5 @@
 // ==================== factory-core.js ====================
-// 状态 / 存档 / 生产 / 卡车 / 订单 / 时间推进
+// 状态 / 存档(账号绑定) / 生产 / 卡车 / 订单 / 时间推进
 
 const FGame = {
   data: null,
@@ -12,14 +12,35 @@ const FGame = {
   roundEndCallback: null,
 };
 
-const F_SAVE_KEY = 'tw_factory_v1';
-
 function fUid() { return 'u_' + (FGame.uid++); }
 function fCurYear() {
   return FGame.data ? fRoundToYear(FGame.data.round) : 1919;
 }
 
-// ---------- 存档 ----------
+// ---------- 存档（账号绑定） ----------
+function fGetUserKey() {
+  if (typeof state !== 'undefined' && state.currentUser && state.currentUser.key) {
+    return state.currentUser.key;
+  }
+  return null;
+}
+
+function fMigrateOldSave() {
+  const u = fGetUserKey();
+  if (!u) return;
+  const oldKey = 'tw_factory_v1';
+  const newKey = 'tw_factory_v1_' + u;
+  try {
+    const oldData = localStorage.getItem(oldKey);
+    if (oldData) {
+      if (!localStorage.getItem(newKey)) {
+        localStorage.setItem(newKey, oldData);
+      }
+      localStorage.removeItem(oldKey);
+    }
+  } catch (e) {}
+}
+
 function fNewState(slot, name) {
   return {
     slot, name: name || ('存档 ' + slot),
@@ -33,28 +54,40 @@ function fNewState(slot, name) {
     createdAt: Date.now(),
   };
 }
+
 function fLoadAll() {
-  try { return JSON.parse(localStorage.getItem(F_SAVE_KEY)) || { slots: {} }; }
+  const u = fGetUserKey();
+  if (!u) return { slots: {} };
+  const key = 'tw_factory_v1_' + u;
+  try { return JSON.parse(localStorage.getItem(key)) || { slots: {} }; }
   catch (e) { return { slots: {} }; }
 }
+
 function fSaveAll(all) {
-  try { localStorage.setItem(F_SAVE_KEY, JSON.stringify(all)); } catch (e) {}
+  const u = fGetUserKey();
+  if (!u) return;
+  const key = 'tw_factory_v1_' + u;
+  try { localStorage.setItem(key, JSON.stringify(all)); } catch (e) {}
 }
+
 function fSaveSlot(slot, data) {
   const all = fLoadAll();
   all.slots[slot] = data;
   all.slots[slot].savedAt = Date.now();
   fSaveAll(all);
 }
+
 function fLoadSlot(slot) {
   const all = fLoadAll();
   return all.slots[slot] || null;
 }
+
 function fDeleteSlot(slot) {
   const all = fLoadAll();
   delete all.slots[slot];
   fSaveAll(all);
 }
+
 function fAutoSave() {
   if (!FGame.data) return;
   fSaveSlot(FGame.data.slot, FGame.data);
@@ -116,7 +149,6 @@ function fTickMachines(gameDt) {
     const rec = def.recipes[m.recipe];
     if (!rec) continue;
 
-    // 如果选中的配方还没解锁（旧存档），跳过
     if (rec.year > year) { m.blockedYear = true; continue; }
     m.blockedYear = false;
 
@@ -232,10 +264,8 @@ function fCompleteOrder(o, i) {
   if (typeof fUIToast === 'function') fUIToast('订单完成 +' + o.reward);
   if (FGame.data.activeOrders.length === 0) fEndRound(false);
 }
-
-// ★ 超时扣 75% 报酬
 function fFailOrder(o, i) {
-  const penalty = Math.floor(o.reward * 0.75);
+  const penalty = Math.floor(o.reward * 0.75); // 扣除 75%
   FGame.data.money -= penalty;
   FGame.data.activeOrders.splice(i, 1);
   if (typeof fUIToast === 'function') fUIToast('订单超时 -' + penalty);
@@ -244,7 +274,6 @@ function fFailOrder(o, i) {
 
 function fEndRound(failed) {
   FGame.data.paused = true;
-  // 破产检查
   let bankrupt = false;
   if (FGame.data.money < 0) {
     bankrupt = true;
@@ -256,7 +285,6 @@ function fEndRound(failed) {
   }
 }
 
-// ---------- 下一轮 ----------
 function fNextRound() {
   FGame.data.round++;
   const year = fCurYear();
@@ -269,26 +297,21 @@ function fNextRound() {
   if (typeof fUIRefreshAll === 'function') fUIRefreshAll();
 }
 
-// ---------- 生成订单池 ----------
-// 只生成当前年份附近可生产的订单
 function fGenerateOrders(year) {
   const candidates = F_ORDER_POOL.filter(o => {
     if (o.year > year) return false;
-    if (o.year < year - 15) return false; // 太老的订单不出现
-    // 所有需要的坦克都必须在当前年份解锁
+    if (o.year < year - 15) return false;
     for (const tk in o.tanks) {
       if (!F_TANKS[tk] || F_TANKS[tk].year > year) return false;
     }
     return true;
   });
   if (!candidates.length) {
-    // 兜底：找最近的
     const nearest = F_ORDER_POOL.reduce((best, o) =>
       Math.abs(o.year - year) < Math.abs(best.year - year) ? o : best
     );
     return [fMaterializeOrder(nearest, year)];
   }
-  // 从候选中随机取 2~4 个
   const n = Math.min(4, candidates.length);
   const shuffled = candidates.slice().sort(() => Math.random() - 0.5);
   return shuffled.slice(0, n).map(o => fMaterializeOrder(o, year));
@@ -307,7 +330,6 @@ function fMaterializeOrder(tpl, year) {
 // ---------- 主循环 ----------
 function fTick(dt) {
   if (!FGame.data || FGame.data.paused) return;
-  // 现实 30 秒 = 游戏 1 天 → gameDt 单位是"天"
   const gameDt = dt * FGame.data.timeScale * (1 / 30);
   FGame.data.gameTime += gameDt;
   fTickMachines(gameDt);

@@ -793,3 +793,91 @@
   #fm-tutorial { bottom: 120px; }
   .fm-re-title { font-size: 20px; }
 }
+/* ==================== 自定义输入弹窗 ==================== */
+.fm-custom-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(5,8,14,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.fm-cp-box {
+  background: var(--f-surface);
+  border: 1px solid var(--f-border-2);
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  max-width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.fm-cp-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--f-text);
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+}
+.fm-cp-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--f-surface-2);
+  border: 1px solid var(--f-border-2);
+  border-radius: 6px;
+  color: var(--f-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 16px;
+}
+.fm-cp-input:focus { border-color: var(--f-accent); }
+.fm-cp-actions {
+  display: flex;
+  gap: 8px;
+}
+.fm-cp-actions .fm-btn { flex: 1; padding: 10px; text-align: center; }
+
+/* ==================== 手机端适配：显示预览，上下排布 ==================== */
+@media (max-width: 700px) {
+  #fm-mainmenu { 
+    flex-direction: column; 
+  }
+  
+  /* 左侧/上方：按钮或存档列表 */
+  .fm-mm-left { 
+    flex: 1 !important; 
+    padding: 24px 20px !important; 
+    width: 100% !important;
+    justify-content: flex-start !important;
+    overflow-y: auto;
+  }
+  
+  /* 右侧/下方：3D预览区 */
+  .fm-mm-right { 
+    flex: 0 0 240px !important; 
+    width: 100% !important;
+    padding: 0 20px 20px !important;
+    display: flex !important; /* 恢复显示 */
+  }
+  
+  #fm-mm-preview {
+    max-width: 100%;
+    aspect-ratio: unset;
+    height: 100%;
+    border-radius: 8px;
+  }
+  
+  .fm-mm-preview-label {
+    bottom: 6px;
+    font-size: 10px;
+  }
+  
+  .fm-mm-saves-list {
+    padding: 0 !important;
+    justify-content: flex-start !important;
+  }
+  
+  .fm-save-card { padding: 12px; }
+}
